@@ -4,9 +4,11 @@ __pycache__/
 venv/
 backend/storage/input/*
 backend/storage/output/*
+backend/storage/mail_outbox/*
 backend/storage/*.db
 !backend/storage/input/.gitkeep
 !backend/storage/output/.gitkeep
+!backend/storage/mail_outbox/.gitkeep
 .DS_Store
 .env
 celerybeat-schedule

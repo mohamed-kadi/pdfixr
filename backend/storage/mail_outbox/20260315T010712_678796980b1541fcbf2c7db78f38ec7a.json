@@ -1,9 +1,0 @@
-{
-  "type": "password_reset",
-  "from": "no-reply@local.dev",
-  "to": "client@local.dev",
-  "subject": "Reset your PDF portal password",
-  "expires_at": "2026-03-15T01:37:12+00:00",
-  "reset_url": "http://localhost:4200/reset-password?token=eyJlbWFpbCI6ImNsaWVudEBsb2NhbC5kZXYiLCJleHAiOjE3NzM1Mzg2MzIsImlhdCI6MTc3MzUzNjgzMiwia2luZCI6InBhc3N3b3JkX3Jlc2V0IiwicHdkdiI6ImUyZDdkNzI1Y2Y4ODNjYTEiLCJ1c2VyX2lkIjoiODBiNzZjNzYtMTE0NS00ZjJmLTgwYzYtMGYzYjJjYTAwZGExIn0.bAZnYBxFRISREOD68oBHZSA45UeP0iMb3pZWfmxpQVE",
-  "text": "You requested a password reset for your PDF portal account.\n\nReset link: http://localhost:4200/reset-password?token=eyJlbWFpbCI6ImNsaWVudEBsb2NhbC5kZXYiLCJleHAiOjE3NzM1Mzg2MzIsImlhdCI6MTc3MzUzNjgzMiwia2luZCI6InBhc3N3b3JkX3Jlc2V0IiwicHdkdiI6ImUyZDdkNzI1Y2Y4ODNjYTEiLCJ1c2VyX2lkIjoiODBiNzZjNzYtMTE0NS00ZjJmLTgwYzYtMGYzYjJjYTAwZGExIn0.bAZnYBxFRISREOD68oBHZSA45UeP0iMb3pZWfmxpQVE\nThis link expires at: 2026-03-15T01:37:12+00:00\n\nIf you did not request this, ignore this email."
-}
