@@ -1,0 +1,75 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: pdfsaas
+      POSTGRES_PASSWORD: pdfsaas
+      POSTGRES_DB: pdfsaas
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    command: python run_api.py
+    environment:
+      PDF_SAAS_DATABASE_URL: postgresql+psycopg://pdfsaas:pdfsaas@postgres:5432/pdfsaas
+      PDF_SAAS_QUEUE_BACKEND: celery
+      PDF_SAAS_CELERY_BROKER_URL: redis://redis:6379/0
+      PDF_SAAS_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PDF_SAAS_AUTH_SECURITY_BACKEND: redis
+      PDF_SAAS_AUTH_SECURITY_REDIS_URL: redis://redis:6379/2
+      PDF_SAAS_REQUIRE_API_KEY: "true"
+      PDF_SAAS_ADMIN_API_KEY: dev-admin-key
+      PDF_SAAS_DEFAULT_WORKSPACE_API_KEY: dev-local-api-key
+      PDF_SAAS_BILLING_WEBHOOK_SECRET: dev-billing-secret
+      PDF_SAAS_QUOTA_SCHEDULER_INTERVAL_SECONDS: 300
+      PDF_SAAS_STORAGE_ROOT: /app/backend/storage
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./:/app
+
+  worker:
+    build: .
+    command: python run_worker.py
+    environment:
+      PDF_SAAS_DATABASE_URL: postgresql+psycopg://pdfsaas:pdfsaas@postgres:5432/pdfsaas
+      PDF_SAAS_QUEUE_BACKEND: celery
+      PDF_SAAS_CELERY_BROKER_URL: redis://redis:6379/0
+      PDF_SAAS_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PDF_SAAS_STORAGE_ROOT: /app/backend/storage
+      PDF_SAAS_DEFAULT_WORKSPACE_API_KEY: dev-local-api-key
+      PDF_SAAS_BILLING_WEBHOOK_SECRET: dev-billing-secret
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./:/app
+
+  frontend:
+    image: node:20
+    working_dir: /app/frontend
+    command: sh -c "npm install && npm start -- --host 0.0.0.0 --port 4200"
+    environment:
+      CI: "true"
+    ports:
+      - "4200:4200"
+    depends_on:
+      - api
+    volumes:
+      - ./:/app
+
+volumes:
+  pg_data:

@@ -1,0 +1,127 @@
+<section class="panel">
+  <div class="section-head">
+    <h2>User Status</h2>
+    <button type="button" class="ghost" [disabled]="loading" (click)="refreshUsers()">
+      {{ loading ? 'Refreshing...' : 'Refresh Users' }}
+    </button>
+  </div>
+  <p class="status" [ngClass]="statusStyle">{{ statusMessage }}</p>
+</section>
+
+<section class="panel">
+  <h2>Create User Account</h2>
+  <form class="upload-form" (ngSubmit)="createUser()">
+    <label for="user-email" class="input-label">Email</label>
+    <input id="user-email" type="email" [(ngModel)]="createUserEmail" name="createUserEmail" required />
+
+    <label for="user-password" class="input-label">Password</label>
+    <input
+      id="user-password"
+      type="password"
+      [(ngModel)]="createUserPassword"
+      name="createUserPassword"
+      minlength="8"
+      required
+    />
+
+    <label for="user-role" class="input-label">Role</label>
+    <select id="user-role" [(ngModel)]="createUserRole" name="createUserRole">
+      <option *ngFor="let role of userRoleOptions" [ngValue]="role">{{ role }}</option>
+    </select>
+
+    <div *ngIf="createUserRole === 'client'">
+      <label for="user-workspace-id" class="input-label">Workspace ID (for client role)</label>
+      <input
+        id="user-workspace-id"
+        type="text"
+        [(ngModel)]="createUserWorkspaceId"
+        name="createUserWorkspaceId"
+        placeholder="Paste workspace id"
+        required
+      />
+    </div>
+
+    <label>
+      <input type="checkbox" [(ngModel)]="createUserIsActive" name="createUserIsActive" />
+      Active
+    </label>
+
+    <button type="submit" [disabled]="creatingUser">{{ creatingUser ? 'Creating...' : 'Create User' }}</button>
+  </form>
+  <p class="status" [ngClass]="createUserStyle">{{ createUserMessage }}</p>
+</section>
+
+<section class="panel">
+  <div class="section-head">
+    <h2>Users</h2>
+    <button class="ghost" type="button" [disabled]="loading" (click)="refreshUsers()">Refresh Users</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Created</th>
+          <th>Access Edit</th>
+          <th>Workspace Edit</th>
+          <th>Password Reset</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngIf="users.length === 0">
+          <td colspan="6" class="empty">No users yet.</td>
+        </tr>
+        <tr *ngFor="let user of users; trackBy: trackByUserId">
+          <td>{{ user.email }}</td>
+          <td>{{ formatDate(user.created_at) }}</td>
+          <td>
+            <div class="inline-controls user-inline-controls">
+              <select [(ngModel)]="user.editRole">
+                <option *ngFor="let role of userRoleOptions" [ngValue]="role">{{ role }}</option>
+              </select>
+              <label class="compact-check">
+                <input type="checkbox" [(ngModel)]="user.editIsActive" />
+                Active
+              </label>
+              <span class="pill" [ngClass]="user.editIsActive ? 'active' : 'inactive'">
+                {{ user.editIsActive ? 'active' : 'inactive' }}
+              </span>
+            </div>
+          </td>
+          <td>
+            <input
+              type="text"
+              [(ngModel)]="user.editWorkspaceId"
+              [disabled]="user.editRole !== 'client'"
+              placeholder="Workspace id"
+            />
+          </td>
+          <td>
+            <input
+              type="password"
+              [(ngModel)]="user.resetPassword"
+              minlength="8"
+              placeholder="New password"
+            />
+          </td>
+          <td>
+            <div class="inline-controls user-action-controls">
+              <button type="button" class="ghost" [disabled]="isSavingUser(user.id)" (click)="saveUser(user)">
+                {{ isSavingUser(user.id) ? 'Saving...' : 'Save User' }}
+              </button>
+              <button
+                type="button"
+                class="ghost"
+                [disabled]="isResettingUser(user.id)"
+                (click)="resetUserPassword(user)"
+              >
+                {{ isResettingUser(user.id) ? 'Resetting...' : 'Reset Password' }}
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>

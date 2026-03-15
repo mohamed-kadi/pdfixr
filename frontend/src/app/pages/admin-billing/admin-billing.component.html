@@ -1,0 +1,41 @@
+<section class="panel">
+  <div class="section-head">
+    <h2>Billing Status</h2>
+    <button class="ghost" type="button" [disabled]="loading" (click)="refreshBillingEvents()">
+      {{ loading ? 'Refreshing...' : 'Refresh Billing' }}
+    </button>
+  </div>
+  <p class="status" [ngClass]="statusStyle">{{ statusMessage }}</p>
+</section>
+
+<section class="panel">
+  <div class="section-head">
+    <h2>Billing Events</h2>
+    <button class="ghost" type="button" [disabled]="loading" (click)="refreshBillingEvents()">Refresh Billing</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Event</th>
+          <th>Status</th>
+          <th>Workspace</th>
+          <th>Provider ID</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngIf="billingEvents.length === 0">
+          <td colspan="5" class="empty">No billing events yet.</td>
+        </tr>
+        <tr *ngFor="let event of billingEvents; trackBy: trackByBillingEventId">
+          <td>{{ formatDate(event.created_at) }}</td>
+          <td><code>{{ event.event_type }}</code></td>
+          <td><span class="pill" [ngClass]="event.status">{{ event.status }}</span></td>
+          <td>{{ event.workspace_id ? (event.workspace_id | slice:0:8) : '-' }}</td>
+          <td><code>{{ event.provider_event_id }}</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>

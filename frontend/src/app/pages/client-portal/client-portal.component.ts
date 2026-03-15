@@ -1,0 +1,322 @@
+import { CommonModule } from '@angular/common';
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { ApiService } from '../../core/api.service';
+import { JobResponse, WorkspaceInfoResponse } from '../../core/models';
+import { SessionService } from '../../core/session.service';
+
+type UiStatus = 'idle' | 'busy' | 'done' | 'fail';
+
+@Component({
+  selector: 'app-client-portal',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  templateUrl: './client-portal.component.html',
+  styleUrl: './client-portal.component.css',
+})
+export class ClientPortalComponent implements OnInit, OnDestroy {
+  clientEmail = '';
+  workspace: WorkspaceInfoResponse | null = null;
+
+  selectedFile: File | null = null;
+
+  connectionMessage = 'Connection: not connected';
+  connectionStatus: UiStatus = 'idle';
+
+  statusMessage = 'No file submitted yet.';
+  statusStyle: UiStatus = 'idle';
+
+  jobs: JobResponse[] = [];
+  activeJobId: string | null = null;
+  isSubmitting = false;
+
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor(
+    private readonly api: ApiService,
+    private readonly session: SessionService,
+    private readonly router: Router
+  ) {}
+
+  ngOnInit(): void {
+    if (this.session.hasAdminSession()) {
+      this.router.navigateByUrl('/admin/workspaces');
+      return;
+    }
+
+    const session = this.session.getClientSession();
+    if (!session) {
+      this.router.navigateByUrl('/sign-in');
+      return;
+    }
+
+    this.clientEmail = session.email;
+    this.refreshAll();
+  }
+
+  ngOnDestroy(): void {
+    this.stopPolling();
+  }
+
+  signOut(): void {
+    this.stopPolling();
+    this.session.clearClientSession();
+    this.router.navigateByUrl('/sign-in');
+  }
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.selectedFile = input.files && input.files.length > 0 ? input.files[0] : null;
+  }
+
+  submit(): void {
+    const authToken = this.requireAuthToken();
+    if (!authToken) {
+      return;
+    }
+
+    if (this.isLimitReached) {
+      this.setStatus('Monthly limit reached. Contact your workspace admin to increase your plan.', 'fail');
+      return;
+    }
+
+    if (!this.selectedFile) {
+      this.setStatus('Select a PDF file first.', 'fail');
+      return;
+    }
+
+    this.isSubmitting = true;
+    this.setStatus('Uploading file...', 'busy');
+    this.api.createJob(authToken, this.selectedFile).subscribe({
+      next: (job) => {
+        this.activeJobId = job.id;
+        this.setStatus(`File ${job.id.slice(0, 8)} submitted.`, 'busy');
+        this.fetchJobs();
+        this.startPolling(job.id);
+      },
+      error: (error: unknown) => {
+        this.setStatus(this.api.extractErrorMessage(error), 'fail');
+      },
+      complete: () => {
+        this.isSubmitting = false;
+      },
+    });
+  }
+
+  refreshAll(): void {
+    this.fetchWorkspace();
+    this.fetchJobs();
+  }
+
+  download(job: JobResponse): void {
+    const authToken = this.requireAuthToken();
+    if (!authToken) {
+      return;
+    }
+
+    this.api.downloadJob(authToken, job.id).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = this.downloadName(job.original_filename, job.id);
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      },
+      error: (error: unknown) => {
+        this.setStatus(this.api.extractErrorMessage(error), 'fail');
+      },
+    });
+  }
+
+  formatDate(value: string): string {
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) {
+      return value;
+    }
+    return dt.toLocaleString();
+  }
+
+  trackByJobId(_: number, job: JobResponse): string {
+    return job.id;
+  }
+
+  get selectedFileName(): string {
+    return this.selectedFile?.name ?? 'No file selected';
+  }
+
+  get workspaceName(): string {
+    return this.workspace?.name ?? 'Workspace';
+  }
+
+  get workspacePlan(): string {
+    return this.workspace?.plan_name ?? 'Plan unavailable';
+  }
+
+  get usageJobs(): number {
+    return this.workspace?.current_period_jobs ?? 0;
+  }
+
+  get monthlyLimit(): number {
+    return this.workspace?.monthly_job_limit ?? 0;
+  }
+
+  get remainingJobs(): number {
+    return this.workspace?.remaining_jobs ?? 0;
+  }
+
+  get usagePercent(): number {
+    if (!this.workspace || this.workspace.monthly_job_limit <= 0) {
+      return 0;
+    }
+    return Math.min(100, Math.round((this.workspace.current_period_jobs / this.workspace.monthly_job_limit) * 100));
+  }
+
+  get isLimitReached(): boolean {
+    if (!this.workspace) {
+      return false;
+    }
+    return this.workspace.remaining_jobs <= 0;
+  }
+
+  get isNearLimit(): boolean {
+    if (!this.workspace || this.workspace.monthly_job_limit <= 0) {
+      return false;
+    }
+    return this.workspace.remaining_jobs > 0 && this.workspace.remaining_jobs <= 3;
+  }
+
+  get processingJobsCount(): number {
+    return this.jobs.filter((job) => job.status === 'processing' || job.status === 'queued').length;
+  }
+
+  get completedJobsCount(): number {
+    return this.jobs.filter((job) => job.status === 'completed').length;
+  }
+
+  get failedJobsCount(): number {
+    return this.jobs.filter((job) => job.status === 'failed').length;
+  }
+
+  get latestJobUpdatedAt(): string {
+    if (this.jobs.length === 0) {
+      return 'No files yet';
+    }
+    return this.formatDate(this.jobs[0].updated_at);
+  }
+
+  private fetchWorkspace(): void {
+    const authToken = this.requireAuthToken();
+    if (!authToken) {
+      return;
+    }
+
+    this.api.getWorkspace(authToken).subscribe({
+      next: (workspace) => {
+        this.workspace = workspace;
+        this.connectionMessage = `Connected to ${workspace.name}`;
+        this.connectionStatus = 'done';
+      },
+      error: (error: unknown) => {
+        this.workspace = null;
+        this.connectionMessage = this.api.extractErrorMessage(error);
+        this.connectionStatus = 'fail';
+      },
+    });
+  }
+
+  private fetchJobs(): void {
+    const authToken = this.requireAuthToken();
+    if (!authToken) {
+      return;
+    }
+
+    this.api.listJobs(authToken).subscribe({
+      next: (payload) => {
+        this.jobs = [...payload.items].sort((left, right) => this.toTimestamp(right.updated_at) - this.toTimestamp(left.updated_at));
+      },
+      error: (error: unknown) => {
+        this.setStatus(this.api.extractErrorMessage(error), 'fail');
+      },
+    });
+  }
+
+  private startPolling(jobId: string): void {
+    this.stopPolling();
+    this.pollTimer = setInterval(() => {
+      const authToken = this.requireAuthToken();
+      if (!authToken) {
+        this.stopPolling();
+        return;
+      }
+
+      this.api.getJob(authToken, jobId).subscribe({
+        next: (job) => {
+          this.fetchJobs();
+          if (job.status === 'completed') {
+            this.setStatus('File is ready. You can download it now.', 'done');
+            this.stopPolling();
+            return;
+          }
+          if (job.status === 'failed') {
+            this.setStatus(`Processing failed: ${job.error_message ?? 'Unknown error.'}`, 'fail');
+            this.stopPolling();
+            return;
+          }
+          if (job.status === 'processing') {
+            this.setStatus('Processing...', 'busy');
+            return;
+          }
+          this.setStatus('Waiting in queue...', 'idle');
+        },
+        error: (error: unknown) => {
+          this.setStatus(this.api.extractErrorMessage(error), 'fail');
+          this.stopPolling();
+        },
+      });
+    }, 1800);
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  private setStatus(message: string, style: UiStatus): void {
+    this.statusMessage = message;
+    this.statusStyle = style;
+  }
+
+  private downloadName(originalFilename: string, jobId: string): string {
+    const lower = originalFilename.toLowerCase();
+    if (lower.endsWith('.pdf')) {
+      return `${originalFilename.slice(0, -4)}_fixed.pdf`;
+    }
+    return `${jobId}_fixed.pdf`;
+  }
+
+  private requireAuthToken(): string | null {
+    const token = this.session.getClientSession()?.token.trim() ?? '';
+    if (token) {
+      return token;
+    }
+
+    this.setStatus('Session expired. Please sign in again.', 'fail');
+    this.session.clearClientSession();
+    this.router.navigateByUrl('/sign-in');
+    return null;
+  }
+
+  private toTimestamp(value: string): number {
+    const parsed = Date.parse(value);
+    if (Number.isNaN(parsed)) {
+      return 0;
+    }
+    return parsed;
+  }
+}

@@ -1,0 +1,75 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.admin-signin-layout {
+  max-width: 1120px;
+  grid-template-columns: 1.05fr 0.95fr;
+  align-items: stretch;
+}
+
+.signin-info {
+  padding: 1.35rem;
+}
+
+.signin-brand {
+  margin-bottom: 0.95rem;
+}
+
+.signin-info h1 {
+  margin: 0.6rem 0 0.5rem;
+  font-size: clamp(1.8rem, 3.2vw, 2.5rem);
+}
+
+.signin-info p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 520px;
+}
+
+.admin-auth-panel {
+  width: min(94vw, 560px);
+  align-self: center;
+}
+
+.password-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.password-row input {
+  min-width: 0;
+}
+
+.tiny-btn {
+  padding: 0.56rem 0.68rem;
+  min-width: 72px;
+}
+
+@media (max-width: 900px) {
+  .admin-signin-layout {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+
+  .signin-info {
+    padding: 1.1rem;
+  }
+
+  .admin-auth-panel {
+    width: min(95vw, 640px);
+  }
+}
+
+@media (max-width: 640px) {
+  .password-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tiny-btn {
+    width: 100%;
+  }
+}

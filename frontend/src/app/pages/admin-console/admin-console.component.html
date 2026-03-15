@@ -1,0 +1,97 @@
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <div class="sidebar-head">
+      <div class="brand-lockup sidebar-brand">
+        <div class="brand-mark"><span class="brand-glyph">PF</span></div>
+        <div class="brand-copy">
+          <p class="brand-title">PDF Form Fixer</p>
+          <p class="brand-subtitle">Owner Console</p>
+        </div>
+      </div>
+      <p class="eyebrow">Owner Console</p>
+      <h2>PDF Ops Control</h2>
+      <p>Keep plans, users, and compliance activity under one operational surface.</p>
+    </div>
+
+    <nav class="sidebar-nav" aria-label="Admin Navigation">
+      <a routerLink="/admin/workspaces" routerLinkActive="active">Workspace Management</a>
+      <a routerLink="/admin/users" routerLinkActive="active">User Access</a>
+      <a routerLink="/admin/billing" routerLinkActive="active">Billing Events</a>
+      <a routerLink="/admin/audit" routerLinkActive="active">Audit Timeline</a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <p class="foot-label">Current section</p>
+      <p class="foot-value">{{ currentSectionLabel }}</p>
+      <button type="button" class="client-switch-button" (click)="switchToClientSignIn()">
+        Switch to client sign-in
+      </button>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <header class="panel admin-topbar">
+      <div class="topbar-copy">
+        <p class="eyebrow">Operations Dashboard</p>
+        <h1>{{ currentSectionLabel }}</h1>
+        <p>Live capacity, account security, and platform reliability KPIs for owner admins.</p>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" class="ghost" [disabled]="kpiLoading" (click)="refreshOverview()">
+          {{ kpiLoading ? 'Refreshing...' : 'Refresh KPIs' }}
+        </button>
+        <div class="account-pill">
+          <div class="avatar">{{ adminInitials }}</div>
+          <div class="account-meta">
+            <p class="account-label">Signed in</p>
+            <p class="account-email">{{ adminEmail }}</p>
+          </div>
+          <button type="button" class="ghost signout-btn" (click)="signOut()">Sign Out</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="kpi-grid">
+      <article class="panel kpi-card tone-brand">
+        <p class="kpi-label">Workspaces</p>
+        <p class="kpi-value">{{ kpiWorkspaceCount }}</p>
+        <p class="kpi-note">{{ kpiCapacityUsed }} / {{ kpiCapacityLimit }} jobs this cycle</p>
+      </article>
+
+      <article class="panel kpi-card tone-mint">
+        <p class="kpi-label">Usage Pressure</p>
+        <p class="kpi-value">{{ kpiUtilizationPercent }}%</p>
+        <p class="kpi-note">Current period utilization across all workspaces</p>
+      </article>
+
+      <article class="panel kpi-card tone-ink">
+        <p class="kpi-label">Active Users</p>
+        <p class="kpi-value">{{ kpiActiveClientUsers }}</p>
+        <p class="kpi-note">Clients live · {{ kpiActiveAdminUsers }} admins active</p>
+      </article>
+
+      <article class="panel kpi-card tone-warn">
+        <p class="kpi-label">Billing Failures</p>
+        <p class="kpi-value">{{ kpiBillingFailures }}</p>
+        <p class="kpi-note">From latest 80 billing events</p>
+      </article>
+
+      <article class="panel kpi-card tone-slate">
+        <p class="kpi-label">Security Backend</p>
+        <p class="kpi-value">{{ kpiSecurityActive }}</p>
+        <p class="kpi-note">
+          Config: {{ kpiSecurityConfigured }} · fallback hits: {{ kpiFallbackActivations }} · audits 24h:
+          {{ kpiRecentAuditEvents }}
+        </p>
+      </article>
+    </section>
+
+    <p class="status dashboard-status" [ngClass]="dashboardStatusStyle">
+      {{ dashboardStatusMessage }}<span class="status-time"> Last refresh: {{ lastRefreshedAt }}</span>
+    </p>
+
+    <section class="admin-route-stack">
+      <router-outlet />
+    </section>
+  </main>
+</div>

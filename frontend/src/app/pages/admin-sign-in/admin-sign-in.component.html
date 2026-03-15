@@ -1,0 +1,66 @@
+<div class="ambient ambient-left"></div>
+<div class="ambient ambient-right"></div>
+
+<main class="layout auth-layout admin-signin-layout">
+  <section class="panel signin-info">
+    <div class="brand-lockup signin-brand">
+      <div class="brand-mark"><span class="brand-glyph">PF</span></div>
+      <div class="brand-copy">
+        <p class="brand-title">PDF Form Fixer</p>
+        <p class="brand-subtitle">Owner Console</p>
+      </div>
+    </div>
+    <p class="eyebrow">Internal</p>
+    <h1>Admin sign in</h1>
+    <p>
+      Owner/admin area for workspace plans, billing events, and audit logs. Use your admin account credentials.
+    </p>
+  </section>
+
+  <section class="panel auth-panel admin-auth-panel">
+    <h2>Admin Sign In</h2>
+    <form class="upload-form" (ngSubmit)="signIn()">
+      <label for="admin-email" class="input-label">Email</label>
+      <input
+        id="admin-email"
+        type="email"
+        placeholder="owner@company.com"
+        [(ngModel)]="email"
+        name="email"
+        autocomplete="email"
+        required
+      />
+
+      <label for="admin-password" class="input-label">Password</label>
+      <div class="password-row">
+        <input
+          id="admin-password"
+          [type]="showPassword ? 'text' : 'password'"
+          placeholder="Enter your password"
+          [(ngModel)]="password"
+          name="password"
+          autocomplete="current-password"
+          required
+        />
+        <button
+          *ngIf="password.trim().length > 0"
+          type="button"
+          class="ghost tiny-btn"
+          (click)="toggleShowPassword()"
+        >
+          {{ showPassword ? 'Hide' : 'Show' }}
+        </button>
+      </div>
+
+      <button type="submit" [disabled]="isSubmitting">
+        {{ isSubmitting ? 'Signing in...' : 'Sign In' }}
+      </button>
+    </form>
+    <p class="status" [ngClass]="statusStyle">{{ statusMessage }}</p>
+    <p class="auth-links">
+      <a routerLink="/sign-in">Back to Client Sign In</a>
+      <span>•</span>
+      <a routerLink="/forgot-password">Forgot Password</a>
+    </p>
+  </section>
+</main>

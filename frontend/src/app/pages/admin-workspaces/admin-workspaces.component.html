@@ -1,0 +1,82 @@
+<section class="panel">
+  <div class="section-head">
+    <h2>Workspace Status</h2>
+    <button type="button" class="ghost" [disabled]="loading" (click)="refreshWorkspaces()">
+      {{ loading ? 'Refreshing...' : 'Refresh Workspaces' }}
+    </button>
+  </div>
+  <p class="status" [ngClass]="statusStyle">{{ statusMessage }}</p>
+</section>
+
+<section class="panel">
+  <h2>Create Workspace</h2>
+  <form class="upload-form" (ngSubmit)="createWorkspace()">
+    <label for="workspace-name" class="input-label">Workspace Name</label>
+    <input id="workspace-name" type="text" [(ngModel)]="createName" name="createName" minlength="2" maxlength="160" required />
+
+    <label for="workspace-plan" class="input-label">Plan</label>
+    <select id="workspace-plan" [(ngModel)]="createPlanName" name="createPlanName">
+      <option *ngFor="let plan of planOptions" [ngValue]="plan">{{ plan }}</option>
+    </select>
+
+    <label for="workspace-limit" class="input-label">Monthly Limit (optional)</label>
+    <input id="workspace-limit" type="number" min="1" [(ngModel)]="createMonthlyLimit" name="createMonthlyLimit" />
+
+    <button type="submit" [disabled]="creatingWorkspace">{{ creatingWorkspace ? 'Creating...' : 'Create Workspace' }}</button>
+  </form>
+  <p class="status" [ngClass]="createStyle">{{ createMessage }}</p>
+  <pre class="mono-block">{{ createdSecret }}</pre>
+</section>
+
+<section class="panel">
+  <div class="section-head">
+    <h2>Workspaces</h2>
+    <button class="ghost" type="button" [disabled]="loading" (click)="refreshWorkspaces()">Refresh Workspaces</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Workspace</th>
+          <th>Billing</th>
+          <th>Usage</th>
+          <th>Plan Edit</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngIf="workspaces.length === 0">
+          <td colspan="5" class="empty">No workspaces yet.</td>
+        </tr>
+        <tr *ngFor="let workspace of workspaces; trackBy: trackByWorkspaceId">
+          <td>{{ workspace.name }}</td>
+          <td>
+            <code>{{ workspace.id.slice(0, 8) }}</code>
+            <div><small>code id: {{ workspace.api_key_prefix }}</small></div>
+          </td>
+          <td><span class="pill" [ngClass]="workspace.billing_status">{{ workspace.billing_status }}</span></td>
+          <td>{{ workspace.current_period_jobs }}/{{ workspace.monthly_job_limit }} (remaining {{ workspace.remaining_jobs }})</td>
+          <td>
+            <div class="inline-controls">
+              <select [(ngModel)]="workspace.editPlanName" [name]="'plan-' + workspace.id">
+                <option *ngFor="let plan of planOptions" [ngValue]="plan">{{ plan }}</option>
+              </select>
+              <input
+                type="number"
+                min="1"
+                [(ngModel)]="workspace.editMonthlyLimit"
+                [name]="'limit-' + workspace.id"
+              />
+              <select [(ngModel)]="workspace.editBillingStatus" [name]="'status-' + workspace.id">
+                <option *ngFor="let status of billingStatusOptions" [ngValue]="status">{{ status }}</option>
+              </select>
+              <button type="button" class="ghost" [disabled]="isSaving(workspace.id)" (click)="saveWorkspace(workspace)">
+                {{ isSaving(workspace.id) ? 'Saving...' : 'Save' }}
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>

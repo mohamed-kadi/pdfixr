@@ -1,0 +1,90 @@
+<div class="ambient ambient-left"></div>
+<div class="ambient ambient-right"></div>
+
+<main class="layout auth-layout client-signin-layout">
+  <section class="panel signin-info">
+    <div class="brand-lockup signin-brand">
+      <div class="brand-mark"><span class="brand-glyph">PF</span></div>
+      <div class="brand-copy">
+        <p class="brand-title">PDF Form Fixer</p>
+        <p class="brand-subtitle">Workspace</p>
+      </div>
+    </div>
+    <p class="eyebrow">Platform Highlights</p>
+    <h1>What You Can Do</h1>
+    <p>Quick overview of your workspace capabilities.</p>
+    <div class="feature-carousel" role="region" aria-label="Platform highlights">
+      <article class="feature-card feature-card-active">
+        <p class="feature-tag">{{ features[activeFeatureIndex].tag }}</p>
+        <h3>{{ features[activeFeatureIndex].title }}</h3>
+        <p>{{ features[activeFeatureIndex].description }}</p>
+      </article>
+
+      <div class="carousel-controls">
+        <button type="button" class="ghost carousel-btn" (click)="previousFeature()" aria-label="Previous feature">
+          Prev
+        </button>
+        <div class="carousel-dots" aria-label="Feature slides">
+          <button
+            *ngFor="let feature of features; let i = index"
+            type="button"
+            class="dot-btn"
+            [class.active]="i === activeFeatureIndex"
+            [attr.aria-label]="'Go to feature ' + (i + 1)"
+            (click)="goToFeature(i)"
+          ></button>
+        </div>
+        <button type="button" class="ghost carousel-btn" (click)="nextFeature()" aria-label="Next feature">
+          Next
+        </button>
+      </div>
+    </div>
+    <p class="carousel-hint">Highlights rotate automatically. Use Prev/Next to navigate manually.</p>
+  </section>
+
+  <section class="panel auth-panel client-auth-panel">
+    <h2>Welcome back</h2>
+    <p class="signin-subtitle">Sign in to your account</p>
+    <form class="upload-form" (ngSubmit)="signIn()">
+      <label for="client-email" class="input-label">Email</label>
+      <input
+        id="client-email"
+        type="email"
+        placeholder="you@company.com"
+        [(ngModel)]="email"
+        name="email"
+        autocomplete="email"
+        required
+      />
+
+      <label for="client-password" class="input-label">Password</label>
+      <div class="password-row">
+        <input
+          id="client-password"
+          [type]="showPassword ? 'text' : 'password'"
+          placeholder="Enter your password"
+          [(ngModel)]="password"
+          name="password"
+          autocomplete="current-password"
+          required
+        />
+        <button
+          *ngIf="password.trim().length > 0"
+          type="button"
+          class="ghost tiny-btn"
+          (click)="toggleShowPassword()"
+        >
+          {{ showPassword ? 'Hide' : 'Show' }}
+        </button>
+      </div>
+
+      <button type="submit" [disabled]="isSubmitting">
+        {{ isSubmitting ? 'Signing in...' : 'Sign In' }}
+      </button>
+    </form>
+    <p class="status" [ngClass]="statusStyle">{{ statusMessage }}</p>
+    <p class="auth-links">
+      <a routerLink="/forgot-password">Forgot Password</a>
+    </p>
+  </section>
+</main>

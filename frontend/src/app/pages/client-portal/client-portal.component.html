@@ -1,0 +1,148 @@
+<div class="ambient ambient-left"></div>
+<div class="ambient ambient-right"></div>
+
+<div class="client-shell">
+  <aside class="client-sidebar">
+    <div class="sidebar-head">
+      <div class="brand-lockup sidebar-brand">
+        <div class="brand-mark"><span class="brand-glyph">PF</span></div>
+        <div class="brand-copy">
+          <p class="brand-title">PDF Form Fixer</p>
+          <p class="brand-subtitle">Client Portal</p>
+        </div>
+      </div>
+      <p class="eyebrow">Client Workspace</p>
+      <h2>PDF Operations</h2>
+      <p>Upload forms, track processing, and download fixed files from one clean workflow.</p>
+    </div>
+
+    <nav class="sidebar-nav" aria-label="Client navigation">
+      <a href="#overview">Overview</a>
+      <a href="#upload">Upload PDF</a>
+      <a href="#recent-files">Recent Files</a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <p class="foot-label">Current plan</p>
+      <p class="foot-value">{{ workspacePlan }}</p>
+      <p class="foot-note">Latest update: {{ latestJobUpdatedAt }}</p>
+    </div>
+  </aside>
+
+  <main class="client-main">
+    <header class="panel client-topbar" id="overview">
+      <div class="topbar-copy">
+        <p class="eyebrow">PDF Form Fixer</p>
+        <h1>{{ workspaceName }}</h1>
+        <p>Upload your PDF, let the worker process it, then download the fixed file when ready.</p>
+        <p class="status workspace-status" [ngClass]="connectionStatus">{{ connectionMessage }}</p>
+      </div>
+      <div class="account-pill">
+        <div class="avatar">CL</div>
+        <div class="account-meta">
+          <p class="account-label">Signed in as</p>
+          <p class="account-email">{{ clientEmail }}</p>
+        </div>
+        <button type="button" class="ghost signout-btn" (click)="signOut()">Sign Out</button>
+      </div>
+    </header>
+
+    <section class="kpi-grid">
+      <article class="panel kpi-card tone-brand">
+        <p class="kpi-label">Monthly Usage</p>
+        <p class="kpi-value">{{ usageJobs }}/{{ monthlyLimit }}</p>
+        <p class="kpi-note">{{ usagePercent }}% of your monthly processing quota used.</p>
+      </article>
+
+      <article class="panel kpi-card tone-mint">
+        <p class="kpi-label">Remaining Jobs</p>
+        <p class="kpi-value">{{ remainingJobs }}</p>
+        <p class="kpi-note">Available files you can process this billing cycle.</p>
+      </article>
+
+      <article class="panel kpi-card tone-ink">
+        <p class="kpi-label">In Progress</p>
+        <p class="kpi-value">{{ processingJobsCount }}</p>
+        <p class="kpi-note">Queued or actively processing right now.</p>
+      </article>
+
+      <article class="panel kpi-card tone-warn">
+        <p class="kpi-label">Completed</p>
+        <p class="kpi-value">{{ completedJobsCount }}</p>
+        <p class="kpi-note">Finished files available for download.</p>
+      </article>
+    </section>
+
+    <section class="panel utilization-panel">
+      <div class="section-head">
+        <h2>Monthly Usage</h2>
+      </div>
+      <div class="usage-track" aria-label="Monthly usage">
+        <div class="usage-fill" [style.width.%]="usagePercent"></div>
+      </div>
+      <p class="usage-meta">{{ usageJobs }} used of {{ monthlyLimit }} this cycle.</p>
+      <p class="status busy" *ngIf="isNearLimit">
+        You are close to your monthly limit. Remaining jobs: {{ remainingJobs }}.
+      </p>
+      <p class="status fail" *ngIf="isLimitReached">
+        Your monthly quota is exhausted. Upload is disabled until the next cycle or plan upgrade.
+      </p>
+    </section>
+
+    <section class="panel upload-panel" id="upload">
+      <div class="section-head">
+        <h2>Upload PDF</h2>
+      </div>
+      <form class="upload-form" (ngSubmit)="submit()">
+        <label for="file-input" class="input-label">Select PDF</label>
+        <input id="file-input" type="file" accept="application/pdf,.pdf" (change)="onFileSelected($event)" />
+        <p class="file-meta">Selected: {{ selectedFileName }}</p>
+        <button id="submit-button" type="submit" [disabled]="isSubmitting || isLimitReached">
+          {{ isSubmitting ? 'Uploading...' : 'Fix PDF' }}
+        </button>
+      </form>
+      <p class="status" [ngClass]="statusStyle">{{ statusMessage }}</p>
+    </section>
+
+    <section class="panel" id="recent-files">
+      <div class="section-head">
+        <h2>Recent Files</h2>
+        <button class="ghost" type="button" (click)="refreshAll()">Refresh</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Status</th>
+              <th>File</th>
+              <th>Updated</th>
+              <th>Download</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="jobs.length === 0">
+              <td colspan="5" class="empty">No files yet.</td>
+            </tr>
+            <tr *ngFor="let job of jobs; trackBy: trackByJobId">
+              <td><code>{{ job.id.slice(0, 8) }}</code></td>
+              <td>
+                <span class="pill" [ngClass]="job.status">{{ job.status }}</span>
+                <span *ngIf="job.error_message" class="error">{{ job.error_message }}</span>
+              </td>
+              <td [title]="job.original_filename">{{ job.original_filename }}</td>
+              <td>{{ formatDate(job.updated_at) }}</td>
+              <td>
+                <button *ngIf="job.download_url" type="button" class="ghost download-btn" (click)="download(job)">Download</button>
+                <span *ngIf="!job.download_url">-</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="error failure-note" *ngIf="failedJobsCount > 0">
+        Failed jobs in current list: {{ failedJobsCount }}. Open status details to review individual errors.
+      </p>
+    </section>
+  </main>
+</div>

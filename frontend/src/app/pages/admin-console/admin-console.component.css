@@ -1,0 +1,324 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.admin-shell {
+  min-height: 100vh;
+}
+
+.admin-sidebar {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  bottom: 1rem;
+  width: 282px;
+  z-index: 2;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background:
+    radial-gradient(circle at 18% 10%, rgba(235, 94, 40, 0.24), transparent 38%),
+    linear-gradient(175deg, #0a3551 0%, #08283f 48%, #071f31 100%);
+  box-shadow: 0 24px 48px rgba(7, 25, 40, 0.35);
+  color: rgba(241, 245, 249, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1rem;
+}
+
+.sidebar-head h2 {
+  margin: 0.55rem 0 0.5rem;
+  font-size: 1.35rem;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+}
+
+.sidebar-brand {
+  margin-bottom: 0.85rem;
+}
+
+.admin-sidebar .brand-mark {
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 8px 18px rgba(3, 10, 18, 0.34);
+}
+
+.admin-sidebar .brand-title {
+  color: #fff;
+}
+
+.admin-sidebar .brand-subtitle {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.sidebar-head p:not(.eyebrow) {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.76);
+  font-size: 0.89rem;
+}
+
+.sidebar-nav {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sidebar-nav a {
+  text-decoration: none;
+  color: rgba(226, 232, 240, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  padding: 0.65rem 0.72rem;
+  background: rgba(15, 23, 42, 0.2);
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.sidebar-nav a:hover {
+  transform: translateX(2px);
+  background: rgba(15, 23, 42, 0.35);
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.sidebar-nav a.active {
+  background: linear-gradient(135deg, rgba(235, 94, 40, 0.28), rgba(7, 25, 40, 0.18));
+  border-color: rgba(251, 146, 60, 0.6);
+  color: #fff;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  padding-top: 0.85rem;
+}
+
+.foot-label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.7rem;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.foot-value {
+  margin: 0.22rem 0 0.75rem;
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.client-switch-button {
+  border: none;
+  background: transparent;
+  color: #fef3c7;
+  font: inherit;
+  font-size: 0.84rem;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+}
+
+.client-switch-button:hover {
+  text-decoration: underline;
+}
+
+.admin-main {
+  margin-left: 304px;
+  padding: 1rem 1rem 2rem;
+  display: grid;
+  gap: 0.95rem;
+}
+
+.admin-topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1rem 1rem 1.1rem;
+}
+
+.topbar-copy h1 {
+  margin: 0.55rem 0 0.3rem;
+  font-size: clamp(1.45rem, 2.7vw, 2.1rem);
+}
+
+.topbar-copy p:not(.eyebrow) {
+  margin: 0;
+  color: var(--muted);
+  max-width: 560px;
+}
+
+.topbar-actions {
+  display: grid;
+  gap: 0.7rem;
+  justify-items: end;
+}
+
+.account-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 14px;
+  padding: 0.5rem 0.56rem 0.5rem 0.5rem;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #0b3c5d, #eb5e28);
+}
+
+.account-meta {
+  min-width: 160px;
+}
+
+.account-label {
+  margin: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.account-email {
+  margin: 0.1rem 0 0;
+  font-weight: 700;
+  font-size: 0.91rem;
+}
+
+.signout-btn {
+  white-space: nowrap;
+}
+
+.kpi-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+}
+
+.kpi-card {
+  padding: 0.75rem 0.82rem;
+  min-height: 126px;
+}
+
+.kpi-label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+.kpi-value {
+  margin: 0.4rem 0 0.25rem;
+  font-size: clamp(1.22rem, 1.8vw, 1.64rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.kpi-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.tone-brand {
+  border-color: rgba(11, 60, 93, 0.28);
+  background: linear-gradient(170deg, rgba(11, 60, 93, 0.08), rgba(255, 255, 255, 0.92));
+}
+
+.tone-mint {
+  border-color: rgba(11, 135, 95, 0.28);
+  background: linear-gradient(170deg, rgba(11, 135, 95, 0.08), rgba(255, 255, 255, 0.92));
+}
+
+.tone-ink {
+  border-color: rgba(15, 23, 42, 0.24);
+  background: linear-gradient(170deg, rgba(15, 23, 42, 0.06), rgba(255, 255, 255, 0.92));
+}
+
+.tone-warn {
+  border-color: rgba(202, 120, 33, 0.3);
+  background: linear-gradient(170deg, rgba(202, 120, 33, 0.11), rgba(255, 255, 255, 0.92));
+}
+
+.tone-slate {
+  border-color: rgba(71, 85, 105, 0.32);
+  background: linear-gradient(170deg, rgba(71, 85, 105, 0.1), rgba(255, 255, 255, 0.92));
+}
+
+.dashboard-status {
+  margin-top: 0;
+}
+
+.status-time {
+  margin-left: 0.4rem;
+  color: rgba(71, 85, 105, 0.92);
+  font-weight: 500;
+}
+
+.admin-route-stack {
+  display: grid;
+  gap: 0.95rem;
+}
+
+@media (max-width: 1240px) {
+  .kpi-grid {
+    grid-template-columns: repeat(3, minmax(170px, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .admin-sidebar {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 1rem 1rem 0;
+  }
+
+  .admin-main {
+    margin-left: 0;
+    padding-top: 0.75rem;
+  }
+
+  .topbar-actions {
+    justify-items: stretch;
+    width: 100%;
+  }
+
+  .admin-topbar {
+    flex-direction: column;
+  }
+
+  .account-pill {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .account-meta {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .status-time {
+    display: block;
+    margin: 0.25rem 0 0;
+  }
+}

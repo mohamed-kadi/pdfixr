@@ -1,0 +1,31 @@
+:host {
+  display: contents;
+}
+
+.user-inline-controls {
+  grid-template-columns: minmax(110px, 1fr) auto auto;
+  gap: 0.5rem;
+}
+
+.compact-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.compact-check input {
+  margin: 0;
+}
+
+.user-action-controls {
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+}
+
+@media (max-width: 900px) {
+  .user-inline-controls {
+    grid-template-columns: 1fr;
+  }
+}
