@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 
+import pikepdf
 import pytest
 from fastapi.testclient import TestClient
 
@@ -65,8 +66,19 @@ def outbox_dir(tmp_path) -> Path:
 
 
 @pytest.fixture()
-def input_pdf_path() -> Path:
+def input_pdf_path(tmp_path) -> Path:
     path = Path(__file__).resolve().parents[1] / "input.pdf"
-    if not path.exists():
-        raise RuntimeError(f"Missing test input PDF: {path}")
-    return path
+    if path.exists():
+        return path
+
+    generated = tmp_path / "generated_input.pdf"
+    with pikepdf.Pdf.new() as pdf:
+        pdf.add_blank_page(page_size=(612, 792))
+        pdf.Root["/AcroForm"] = pikepdf.Dictionary(
+            {
+                "/Fields": pikepdf.Array(),
+                "/NeedAppearances": False,
+            }
+        )
+        pdf.save(generated)
+    return generated
