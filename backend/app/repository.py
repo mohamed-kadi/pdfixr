@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy import Select, delete, func, select, update
@@ -86,6 +86,10 @@ class JobRepository:
         status: JobStatus,
         output_path: str | None = None,
         error_message: str | None = None,
+        attempt_count: int | None = None,
+        max_attempts: int | None = None,
+        next_retry_at: datetime | None = None,
+        set_next_retry_at: bool = False,
     ) -> Job | None:
         job = self.session.get(Job, job_id)
         if not job:
@@ -96,11 +100,79 @@ class JobRepository:
         if output_path is not None:
             job.output_path = output_path
         job.error_message = error_message
+        if attempt_count is not None:
+            job.attempt_count = max(0, attempt_count)
+        if max_attempts is not None:
+            job.max_attempts = max(1, max_attempts)
+        if set_next_retry_at:
+            job.next_retry_at = next_retry_at
 
         self.session.add(job)
         self.session.commit()
         self.session.refresh(job)
         return job
+
+    def mark_processing_attempt(self, job_id: str) -> Job | None:
+        job = self.session.get(Job, job_id)
+        if not job or job.status != JobStatus.QUEUED:
+            return None
+
+        now = utc_now()
+        if job.next_retry_at and job.next_retry_at > now:
+            return None
+
+        job.status = JobStatus.PROCESSING
+        job.attempt_count = max(0, job.attempt_count) + 1
+        job.next_retry_at = None
+        job.error_message = None
+        job.updated_at = now
+
+        self.session.add(job)
+        self.session.commit()
+        self.session.refresh(job)
+        return job
+
+    def schedule_retry(self, job_id: str, *, error_message: str, delay_seconds: int) -> Job | None:
+        job = self.session.get(Job, job_id)
+        if not job:
+            return None
+
+        now = utc_now()
+        job.status = JobStatus.QUEUED
+        job.error_message = error_message
+        job.next_retry_at = now + timedelta(seconds=max(1, delay_seconds))
+        job.updated_at = now
+
+        self.session.add(job)
+        self.session.commit()
+        self.session.refresh(job)
+        return job
+
+    def list_and_claim_ready_retries(self, *, limit: int = 20) -> list[Job]:
+        now = utc_now()
+        stmt: Select[tuple[Job]] = (
+            select(Job)
+            .where(
+                Job.status == JobStatus.QUEUED,
+                Job.next_retry_at.is_not(None),
+                Job.next_retry_at <= now,
+            )
+            .order_by(Job.next_retry_at.asc())
+            .limit(max(1, limit))
+        )
+        jobs = list(self.session.scalars(stmt).all())
+        if not jobs:
+            return []
+
+        for job in jobs:
+            job.next_retry_at = None
+            job.updated_at = now
+
+        self.session.add_all(jobs)
+        self.session.commit()
+        for job in jobs:
+            self.session.refresh(job)
+        return jobs
 
 
 class WorkspaceRepository:

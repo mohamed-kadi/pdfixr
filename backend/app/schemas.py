@@ -23,6 +23,9 @@ class JobResponse(BaseModel):
     workspace_id: str
     status: JobStatus
     original_filename: str
+    attempt_count: int
+    max_attempts: int
+    next_retry_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     output_ready: bool

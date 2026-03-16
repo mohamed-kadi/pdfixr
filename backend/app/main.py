@@ -10,7 +10,7 @@ from .bootstrap import ensure_bootstrap
 from .config import settings
 from .db import SessionLocal, init_db
 from .queueing import build_dispatcher
-from .scheduler import QuotaResetScheduler
+from .scheduler import QuotaResetScheduler, RetryJobScheduler
 from .services.auth_security import build_auth_security
 from .services.mailer import build_job_notification_mailer, build_password_reset_mailer
 from .services.storage import build_storage_backend
@@ -37,10 +37,18 @@ async def lifespan(app: FastAPI):
         SessionLocal,
         interval_seconds=settings.quota_scheduler_interval_seconds,
     )
+    app.state.retry_scheduler = RetryJobScheduler(
+        SessionLocal,
+        app.state.job_dispatcher,
+        interval_seconds=settings.retry_scheduler_interval_seconds,
+        batch_size=settings.retry_scheduler_batch_size,
+    )
     app.state.quota_scheduler.start()
+    app.state.retry_scheduler.start()
 
     yield
 
+    app.state.retry_scheduler.stop()
     app.state.job_dispatcher.shutdown()
     app.state.quota_scheduler.stop()
 

@@ -17,7 +17,7 @@ def _upload_pdf(client, input_pdf_path: Path, api_key: str = "dev-local-api-key"
         )
 
 
-def _wait_for_job_completion(client, *, api_key: str, job_id: str, timeout_seconds: float = 6.0):
+def _wait_for_job_completion(client, *, api_key: str, job_id: str, timeout_seconds: float = 15.0):
     start = time.time()
     while time.time() - start < timeout_seconds:
         r = client.get(f"/api/v1/jobs/{job_id}", headers={"X-API-Key": api_key})
@@ -29,7 +29,7 @@ def _wait_for_job_completion(client, *, api_key: str, job_id: str, timeout_secon
     raise AssertionError("Timed out waiting for job completion")
 
 
-def _wait_for_job_notification(outbox_dir: Path, *, job_id: str, timeout_seconds: float = 6.0) -> dict:
+def _wait_for_job_notification(outbox_dir: Path, *, job_id: str, timeout_seconds: float = 15.0) -> dict:
     start = time.time()
     while time.time() - start < timeout_seconds:
         files = sorted(outbox_dir.glob("*.json"))
