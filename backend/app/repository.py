@@ -225,6 +225,18 @@ class UserRepository:
         stmt = select(User).order_by(User.created_at.desc()).limit(limit)
         return list(self.session.scalars(stmt).all())
 
+    def list_active_clients_for_workspace(self, *, workspace_id: str) -> list[User]:
+        stmt = (
+            select(User)
+            .where(
+                User.workspace_id == workspace_id,
+                User.role == UserRole.CLIENT,
+                User.is_active.is_(True),
+            )
+            .order_by(User.created_at.asc())
+        )
+        return list(self.session.scalars(stmt).all())
+
     def count_active_admins(self) -> int:
         stmt = select(func.count(User.id)).where(User.role == UserRole.ADMIN, User.is_active.is_(True))
         count = self.session.scalar(stmt)

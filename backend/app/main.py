@@ -12,7 +12,7 @@ from .db import SessionLocal, init_db
 from .queueing import build_dispatcher
 from .scheduler import QuotaResetScheduler
 from .services.auth_security import build_auth_security
-from .services.mailer import build_password_reset_mailer
+from .services.mailer import build_job_notification_mailer, build_password_reset_mailer
 from .services.storage import build_storage_backend
 
 
@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
     app.state.job_dispatcher = build_dispatcher(SessionLocal)
     app.state.storage = build_storage_backend(settings)
     app.state.password_reset_mailer = build_password_reset_mailer(settings)
+    app.state.job_notification_mailer = build_job_notification_mailer(settings)
     app.state.auth_security = build_auth_security(settings)
     app.state.quota_scheduler = QuotaResetScheduler(
         SessionLocal,
