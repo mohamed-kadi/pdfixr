@@ -17,6 +17,7 @@ Multi-tenant SaaS starter for fixing PDF form font issues across viewers (Previe
 - SQLite for local dev, Postgres-ready for production
 - Separated Angular frontend (`frontend/`) for client and admin portals
 - Admin audit/billing views separate from client upload page
+- Job result notification emails (completed/failed) to active client users
 
 ## Client-Friendly Terms
 
@@ -171,6 +172,7 @@ PATH=/opt/homebrew/bin:$PATH npm start
 - Sign in with `client@local.dev` / `Client123!!`.
 - If needed, run `/forgot-password` then `/reset-password` to recover account access.
 - By default, reset emails are written to `backend/storage/mail_outbox/` (file delivery mode).
+- Job status notifications are also written there in `file` mode.
 - Upload `input.pdf`.
 - Watch status move `queued -> processing -> completed`.
 - Download the fixed PDF.
