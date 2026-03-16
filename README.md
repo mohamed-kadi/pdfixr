@@ -14,6 +14,7 @@ Multi-tenant SaaS starter for fixing PDF form font issues across viewers (Previe
 - Billing-event driven plan upgrades/downgrades
 - Quota reset scheduler (monthly period rows + retention cleanup)
 - Local queue mode (ThreadPool) or distributed queue mode (Celery + Redis)
+- Automatic retry scheduling with exponential backoff for transient job failures
 - SQLite for local dev, Postgres-ready for production
 - Separated Angular frontend (`frontend/`) for client and admin portals
 - Admin audit/billing views separate from client upload page
@@ -350,6 +351,10 @@ python verify_pdf_result.py output_preview_saved.pdf --expect-text Test
 - `PDF_SAAS_WORKER_CONCURRENCY` (local mode, default: `4`)
 - `PDF_SAAS_CELERY_BROKER_URL` (default: `redis://localhost:6379/0`)
 - `PDF_SAAS_CELERY_RESULT_BACKEND` (default: `redis://localhost:6379/1`)
+- `PDF_SAAS_JOB_MAX_ATTEMPTS` (default: `3`)
+- `PDF_SAAS_JOB_RETRY_BASE_DELAY_SECONDS` (default: `5`)
+- `PDF_SAAS_RETRY_SCHEDULER_INTERVAL_SECONDS` (default: `5`)
+- `PDF_SAAS_RETRY_SCHEDULER_BATCH_SIZE` (default: `20`)
 
 ### Auth / Tenancy / Limits
 

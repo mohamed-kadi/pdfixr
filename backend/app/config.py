@@ -56,6 +56,10 @@ class Settings:
     queue_backend: str
     celery_broker_url: str
     celery_result_backend: str
+    job_max_attempts: int
+    job_retry_base_delay_seconds: int
+    retry_scheduler_interval_seconds: int
+    retry_scheduler_batch_size: int
     require_api_key: bool
     default_workspace_name: str
     default_workspace_api_key: str
@@ -143,6 +147,10 @@ def load_settings() -> Settings:
         queue_backend=queue_backend if queue_backend in {"local", "celery"} else "local",
         celery_broker_url=os.getenv("PDF_SAAS_CELERY_BROKER_URL", "redis://localhost:6379/0"),
         celery_result_backend=os.getenv("PDF_SAAS_CELERY_RESULT_BACKEND", "redis://localhost:6379/1"),
+        job_max_attempts=max(1, _get_int("PDF_SAAS_JOB_MAX_ATTEMPTS", 3)),
+        job_retry_base_delay_seconds=max(1, _get_int("PDF_SAAS_JOB_RETRY_BASE_DELAY_SECONDS", 5)),
+        retry_scheduler_interval_seconds=max(1, _get_int("PDF_SAAS_RETRY_SCHEDULER_INTERVAL_SECONDS", 5)),
+        retry_scheduler_batch_size=max(1, _get_int("PDF_SAAS_RETRY_SCHEDULER_BATCH_SIZE", 20)),
         require_api_key=_get_bool("PDF_SAAS_REQUIRE_API_KEY", False),
         default_workspace_name=os.getenv("PDF_SAAS_DEFAULT_WORKSPACE_NAME", "Default Workspace"),
         default_workspace_api_key=os.getenv("PDF_SAAS_DEFAULT_WORKSPACE_API_KEY", "dev-local-api-key"),

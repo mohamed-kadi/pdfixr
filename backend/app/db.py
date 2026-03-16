@@ -24,7 +24,8 @@ def _rebuild_required_for_sqlite() -> bool:
 
     if "jobs" in tables:
         columns = {col["name"] for col in inspector.get_columns("jobs")}
-        if "workspace_id" not in columns:
+        required = {"workspace_id", "attempt_count", "max_attempts", "next_retry_at"}
+        if not required.issubset(columns):
             return True
 
     if "workspaces" in tables:

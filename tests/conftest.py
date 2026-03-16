@@ -48,6 +48,10 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("PDF_SAAS_AUTH_SECURITY_REDIS_KEY_NAMESPACE", "pdfsaas:test:auth")
     monkeypatch.setenv("PDF_SAAS_DB_AUTO_INIT", "true")
     monkeypatch.setenv("PDF_SAAS_QUEUE_BACKEND", "local")
+    monkeypatch.setenv("PDF_SAAS_JOB_MAX_ATTEMPTS", "3")
+    monkeypatch.setenv("PDF_SAAS_JOB_RETRY_BASE_DELAY_SECONDS", "1")
+    monkeypatch.setenv("PDF_SAAS_RETRY_SCHEDULER_INTERVAL_SECONDS", "1")
+    monkeypatch.setenv("PDF_SAAS_RETRY_SCHEDULER_BATCH_SIZE", "20")
 
     for key in list(sys.modules.keys()):
         if key.startswith("backend.app"):
