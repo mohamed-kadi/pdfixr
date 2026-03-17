@@ -2,6 +2,7 @@ export type BillingStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'i
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 export type BillingEventStatus = 'received' | 'processed' | 'ignored' | 'failed';
 export type UserRole = 'admin' | 'client';
+export type JobType = 'font_fix' | 'compress';
 
 export interface WorkspaceInfoResponse {
   id: string;
@@ -132,7 +133,14 @@ export interface JobResponse {
   id: string;
   workspace_id: string;
   status: JobStatus;
+  job_type: JobType;
   original_filename: string;
+  input_size_bytes: number | null;
+  output_size_bytes: number | null;
+  size_reduction_percent: number | null;
+  attempt_count: number;
+  max_attempts: number;
+  next_retry_at: string | null;
   created_at: string;
   updated_at: string;
   output_ready: boolean;

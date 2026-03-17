@@ -1,10 +1,13 @@
 # PDF Form SaaS Starter (Scalable)
 
-Multi-tenant SaaS starter for fixing PDF form font issues across viewers (Preview, Chrome, Acrobat).
+Multi-tenant SaaS starter for PDF processing operations across viewers (Preview, Chrome, Acrobat).
 
 ## What It Supports
 
-- Serif-safe PDF processing (`/DA`, `/DR`, `/XFA` cleanup)
+- Multi-operation PDF processing:
+  - `font_fix` (serif-safe AcroForm normalization: `/DA`, `/DR`, `/XFA` cleanup)
+  - `compress` (stream/object recompression for smaller files)
+  - Compression result includes input/output size and reduction %
 - Async background jobs
 - Storage abstraction for local disk and S3-compatible object storage
 - Signed download URLs for object storage mode
@@ -147,7 +150,7 @@ Your PDF fixing portal is ready.
 2) Enter your email + password
 3) Upload your PDF
 4) Wait for processing
-5) Download the fixed PDF
+5) Download the processed PDF
 
 If upload fails, send me a screenshot and I will check it.
 ```
@@ -174,9 +177,9 @@ PATH=/opt/homebrew/bin:$PATH npm start
 - If needed, run `/forgot-password` then `/reset-password` to recover account access.
 - By default, reset emails are written to `backend/storage/mail_outbox/` (file delivery mode).
 - Job status notifications are also written there in `file` mode.
-- Upload `input.pdf`.
+- Upload `input.pdf` and choose an operation (`font_fix` or `compress`).
 - Watch status move `queued -> processing -> completed`.
-- Download the fixed PDF.
+- Download the processed PDF.
 - This page is client-facing (upload, status, download only).
 
 4. Open Admin UI at `http://localhost:4200/admin/sign-in`:
@@ -273,7 +276,7 @@ Auth hardening:
 
 ### Jobs
 
-- `POST /api/v1/jobs` (multipart: `file`)
+- `POST /api/v1/jobs` (multipart: `file`, optional `job_type`, optional `job_options`)
 - `GET /api/v1/jobs`
 - `GET /api/v1/jobs/{job_id}`
 - `GET /api/v1/jobs/{job_id}/download`

@@ -95,3 +95,37 @@ def fix_pdf_file(
         "output": str(output_path),
         "unlocked": True,
     }
+
+
+def compress_pdf_file(
+    input_path: Path,
+    output_path: Path,
+    *,
+    linearize: bool = False,
+) -> dict[str, str | int | bool]:
+    if not input_path.exists() or input_path.stat().st_size == 0:
+        raise PdfProcessingError(f"Input file is missing or empty: {input_path}")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        pdf = pikepdf.open(input_path)
+    except PasswordError as exc:
+        raise PdfProcessingError("PDF is locked with a password that was not provided.") from exc
+    except PdfError as exc:
+        raise PdfProcessingError(f"Could not open PDF: {exc}") from exc
+
+    with pdf:
+        pdf.save(
+            output_path,
+            compress_streams=True,
+            recompress_flate=True,
+            object_stream_mode=pikepdf.ObjectStreamMode.generate,
+            linearize=linearize,
+        )
+
+    return {
+        "input": str(input_path),
+        "output": str(output_path),
+        "compressed": True,
+    }

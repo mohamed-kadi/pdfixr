@@ -266,6 +266,11 @@
   font-size: 0.84rem;
 }
 
+.table-wrap .file-meta {
+  display: block;
+  margin-top: 0.24rem;
+}
+
 .failure-note {
   margin-top: 0.75rem;
 }

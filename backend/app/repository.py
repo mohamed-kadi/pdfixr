@@ -86,6 +86,7 @@ class JobRepository:
         status: JobStatus,
         output_path: str | None = None,
         error_message: str | None = None,
+        output_size_bytes: int | None = None,
         attempt_count: int | None = None,
         max_attempts: int | None = None,
         next_retry_at: datetime | None = None,
@@ -100,6 +101,8 @@ class JobRepository:
         if output_path is not None:
             job.output_path = output_path
         job.error_message = error_message
+        if output_size_bytes is not None:
+            job.output_size_bytes = max(0, output_size_bytes)
         if attempt_count is not None:
             job.attempt_count = max(0, attempt_count)
         if max_attempts is not None:

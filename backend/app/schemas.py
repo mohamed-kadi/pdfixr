@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from .models import BillingStatus, JobStatus, UserRole
+from .models import BillingStatus, JobStatus, JobType, UserRole
 
 
 class HealthResponse(BaseModel):
@@ -22,7 +22,11 @@ class JobResponse(BaseModel):
     id: str
     workspace_id: str
     status: JobStatus
+    job_type: JobType
     original_filename: str
+    input_size_bytes: int | None = None
+    output_size_bytes: int | None = None
+    size_reduction_percent: float | None = None
     attempt_count: int
     max_attempts: int
     next_retry_at: datetime | None = None

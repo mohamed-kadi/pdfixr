@@ -7,12 +7,12 @@ from pathlib import Path
 from urllib.parse import quote
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, RedirectResponse, Response
 
 from ..config import settings
 from ..dependencies import get_current_user, get_current_workspace, require_admin
-from ..models import BillingEventStatus, BillingStatus, Job, JobStatus, User, UserRole, Workspace
+from ..models import BillingEventStatus, BillingStatus, Job, JobStatus, JobType, User, UserRole, Workspace
 from ..repository import AuditRepository, BillingRepository, JobRepository, UsageRepository, UserRepository, WorkspaceRepository
 from ..schemas import (
     AdminLoginRequest,
@@ -70,11 +70,19 @@ def _to_job_response(request: Request, job: Job) -> JobResponse:
     if job.status == JobStatus.COMPLETED and job.output_path:
         download_url = str(request.url_for("download_job_result", job_id=job.id))
 
+    size_reduction_percent = None
+    if job.input_size_bytes and job.input_size_bytes > 0 and job.output_size_bytes is not None:
+        size_reduction_percent = round(((job.input_size_bytes - job.output_size_bytes) / job.input_size_bytes) * 100.0, 2)
+
     return JobResponse(
         id=job.id,
         workspace_id=job.workspace_id,
         status=job.status,
+        job_type=JobType(job.job_type),
         original_filename=job.original_filename,
+        input_size_bytes=job.input_size_bytes,
+        output_size_bytes=job.output_size_bytes,
+        size_reduction_percent=size_reduction_percent,
         attempt_count=job.attempt_count,
         max_attempts=job.max_attempts,
         next_retry_at=job.next_retry_at,
@@ -103,6 +111,35 @@ def _workspace_info(repo: UsageRepository, workspace: Workspace) -> WorkspaceInf
         remaining_jobs=remaining,
         created_at=workspace.created_at,
     )
+
+
+def _normalize_job_options(*, job_type: JobType, raw_options: str | None) -> str | None:
+    if raw_options is None or not raw_options.strip():
+        return None
+
+    try:
+        parsed = json.loads(raw_options)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"job_options must be valid JSON: {exc.msg}") from exc
+
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=400, detail="job_options must be a JSON object.")
+
+    if job_type == JobType.COMPRESS:
+        normalized = {}
+        if "linearize" in parsed:
+            if not isinstance(parsed["linearize"], bool):
+                raise HTTPException(status_code=400, detail="job_options.linearize must be a boolean.")
+            normalized["linearize"] = parsed["linearize"]
+        return json.dumps(normalized, separators=(",", ":")) if normalized else None
+
+    if job_type == JobType.FONT_FIX:
+        # Reserved for future per-tool options while keeping strict validation now.
+        if parsed:
+            raise HTTPException(status_code=400, detail="job_options are not supported for job_type=font_fix yet.")
+        return None
+
+    raise HTTPException(status_code=400, detail=f"Unsupported job type: {job_type.value}")
 
 
 def _to_user_response(user: User) -> UserResponse:
@@ -677,10 +714,13 @@ def list_jobs(request: Request, limit: int = 20, workspace: Workspace = Depends(
 def create_job(
     request: Request,
     file: UploadFile = File(...),
+    job_type: JobType = Form(default=JobType.FONT_FIX),
+    job_options: str | None = Form(default=None),
     workspace: Workspace = Depends(get_current_workspace),
 ) -> JobResponse:
     app_settings = request.app.state.settings
     storage = request.app.state.storage
+    normalized_job_options = _normalize_job_options(job_type=job_type, raw_options=job_options)
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="File name is required.")
@@ -761,7 +801,11 @@ def create_job(
                     original_filename=Path(file.filename).name,
                     input_path=input_reference,
                     output_path=None,
+                    input_size_bytes=size,
+                    output_size_bytes=None,
                     status=JobStatus.QUEUED,
+                    job_type=job_type.value,
+                    job_options=normalized_job_options,
                     attempt_count=0,
                     max_attempts=app_settings.job_max_attempts,
                     next_retry_at=None,
@@ -802,6 +846,7 @@ def create_job(
                 workspace_id=current_workspace.id,
                 details={
                     "filename": job.original_filename,
+                    "job_type": job.job_type,
                     "size_bytes": size,
                     "period_start": str(period),
                     "remaining_jobs": max(0, current_workspace.monthly_job_limit - current_jobs),
@@ -876,7 +921,12 @@ def download_job_result(
 
     app_settings = request.app.state.settings
     storage = request.app.state.storage
-    download_name = f"{Path(job.original_filename).stem}_fixed.pdf"
+    suffix = "_fixed"
+    if job.job_type == JobType.COMPRESS.value:
+        suffix = "_compressed"
+    elif job.job_type != JobType.FONT_FIX.value:
+        suffix = "_processed"
+    download_name = f"{Path(job.original_filename).stem}{suffix}.pdf"
 
     try:
         signed_url = storage.generate_download_url(
