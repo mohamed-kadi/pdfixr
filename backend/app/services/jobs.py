@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import sessionmaker
 
 from ..config import settings
-from ..models import Job, JobStatus
+from ..models import Job, JobStatus, JobType
 from ..repository import AuditRepository, JobRepository, UserRepository
 from .mailer import JobStatusEmail, build_job_notification_mailer
-from .pdf_processor import PdfProcessingError, fix_pdf_file
+from .pdf_processor import PdfProcessingError, compress_pdf_file, fix_pdf_file
 from .storage import StorageError, build_storage_backend
 
 
@@ -65,6 +66,37 @@ def _calculate_retry_delay_seconds(attempt_count: int) -> int:
     return min(3600, base * (2**exponent))
 
 
+def _output_suffix_for_job_type(job_type: str) -> str:
+    if job_type == JobType.FONT_FIX.value:
+        return "fixed"
+    if job_type == JobType.COMPRESS.value:
+        return "compressed"
+    return "processed"
+
+
+def _process_pdf_job(job: Job, input_path, output_path) -> None:
+    options: dict[str, object] = {}
+    if job.job_options:
+        try:
+            parsed = json.loads(job.job_options)
+        except json.JSONDecodeError:
+            parsed = {}
+        if isinstance(parsed, dict):
+            options = parsed
+
+    if job.job_type == JobType.FONT_FIX.value:
+        fix_pdf_file(input_path, output_path)
+        return
+    if job.job_type == JobType.COMPRESS.value:
+        compress_pdf_file(
+            input_path,
+            output_path,
+            linearize=bool(options.get("linearize", False)),
+        )
+        return
+    raise PdfProcessingError(f"Unsupported job type: {job.job_type}")
+
+
 def _handle_attempt_failure(
     *,
     repo: JobRepository,
@@ -100,6 +132,7 @@ def _handle_attempt_failure(
                     else (_utc_now().isoformat())
                 ),
                 "error": error_message,
+                "job_type": job.job_type,
             },
         )
         return
@@ -122,6 +155,7 @@ def _handle_attempt_failure(
             "attempt_count": job.attempt_count,
             "max_attempts": job.max_attempts,
             "error": error_message,
+            "job_type": job.job_type,
         },
     )
     if failed:
@@ -157,16 +191,18 @@ def process_job(job_id: str, session_factory: sessionmaker) -> None:
                 "input_path": job.input_path,
                 "attempt_count": job.attempt_count,
                 "max_attempts": job.max_attempts,
+                "job_type": job.job_type,
             },
         )
 
         output_stage_dir = settings.storage_root / "tmp" / "worker_outputs" / job.workspace_id
         output_stage_dir.mkdir(parents=True, exist_ok=True)
-        output_stage_path = output_stage_dir / f"{job.id}_fixed.pdf"
+        output_stage_path = output_stage_dir / f"{job.id}_{_output_suffix_for_job_type(job.job_type)}.pdf"
 
         try:
             with storage.materialize_input(job.input_path) as input_path:
-                fix_pdf_file(input_path, output_stage_path)
+                _process_pdf_job(job, input_path, output_stage_path)
+            output_size_bytes = output_stage_path.stat().st_size if output_stage_path.exists() else None
             output_reference = storage.stage_output_file(
                 workspace_id=job.workspace_id,
                 job_id=job.id,
@@ -176,6 +212,7 @@ def process_job(job_id: str, session_factory: sessionmaker) -> None:
                 job.id,
                 status=JobStatus.COMPLETED,
                 output_path=output_reference,
+                output_size_bytes=output_size_bytes,
                 error_message=None,
                 set_next_retry_at=True,
                 next_retry_at=None,
@@ -187,7 +224,7 @@ def process_job(job_id: str, session_factory: sessionmaker) -> None:
                 resource_type="job",
                 resource_id=job.id,
                 workspace_id=job.workspace_id,
-                details={"output_path": output_reference},
+                details={"output_path": output_reference, "job_type": job.job_type},
             )
             if completed:
                 _notify_workspace_clients(

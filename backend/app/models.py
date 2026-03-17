@@ -22,6 +22,11 @@ class JobStatus(str, Enum):
     FAILED = "failed"
 
 
+class JobType(str, Enum):
+    FONT_FIX = "font_fix"
+    COMPRESS = "compress"
+
+
 class BillingStatus(str, Enum):
     TRIALING = "trialing"
     ACTIVE = "active"
@@ -82,9 +87,13 @@ class Job(Base):
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     input_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     output_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    input_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[JobStatus] = mapped_column(
         SAEnum(JobStatus, name="job_status"), nullable=False, default=JobStatus.QUEUED
     )
+    job_type: Mapped[str] = mapped_column(String(32), nullable=False, default=JobType.FONT_FIX.value)
+    job_options: Mapped[str | None] = mapped_column(Text, nullable=True)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

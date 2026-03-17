@@ -11,6 +11,7 @@ import {
   ClientLoginResponse,
   JobListResponse,
   JobResponse,
+  JobType,
   PasswordResetConfirmRequest,
   PasswordResetConfirmResponse,
   PasswordResetRequestPayload,
@@ -113,9 +114,10 @@ export class ApiService {
     });
   }
 
-  createJob(authToken: string, file: File): Observable<JobResponse> {
+  createJob(authToken: string, file: File, jobType: JobType = 'font_fix'): Observable<JobResponse> {
     const formData = new FormData();
     formData.append('file', file, file.name);
+    formData.append('job_type', jobType);
     return this.http.post<JobResponse>(`${this.baseUrl}/jobs`, formData, {
       headers: this.authHeaders(authToken),
     });

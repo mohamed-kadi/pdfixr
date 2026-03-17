@@ -3,7 +3,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { JobResponse, WorkspaceInfoResponse } from '../../core/models';
+import { JobResponse, JobType, WorkspaceInfoResponse } from '../../core/models';
 import { SessionService } from '../../core/session.service';
 
 type UiStatus = 'idle' | 'busy' | 'done' | 'fail';
@@ -20,6 +20,7 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
   workspace: WorkspaceInfoResponse | null = null;
 
   selectedFile: File | null = null;
+  selectedJobType: JobType = 'font_fix';
 
   connectionMessage = 'Connection: not connected';
   connectionStatus: UiStatus = 'idle';
@@ -87,11 +88,11 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
     }
 
     this.isSubmitting = true;
-    this.setStatus('Uploading file...', 'busy');
-    this.api.createJob(authToken, this.selectedFile).subscribe({
+    this.setStatus(`Uploading file for ${this.jobTypeLabel(this.selectedJobType)}...`, 'busy');
+    this.api.createJob(authToken, this.selectedFile, this.selectedJobType).subscribe({
       next: (job) => {
         this.activeJobId = job.id;
-        this.setStatus(`File ${job.id.slice(0, 8)} submitted.`, 'busy');
+        this.setStatus(`File ${job.id.slice(0, 8)} submitted for ${this.jobTypeLabel(job.job_type)}.`, 'busy');
         this.fetchJobs();
         this.startPolling(job.id);
       },
@@ -120,7 +121,7 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = this.downloadName(job.original_filename, job.id);
+        anchor.download = this.downloadName(job.original_filename, job.id, job.job_type);
         document.body.appendChild(anchor);
         anchor.click();
         anchor.remove();
@@ -292,12 +293,46 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
     this.statusStyle = style;
   }
 
-  private downloadName(originalFilename: string, jobId: string): string {
+  jobTypeLabel(type: JobType): string {
+    if (type === 'compress') {
+      return 'PDF Compression';
+    }
+    return 'Font Fix';
+  }
+
+  compressionSummary(job: JobResponse): string | null {
+    if (job.job_type !== 'compress' || job.status !== 'completed') {
+      return null;
+    }
+    if (job.input_size_bytes == null || job.output_size_bytes == null || job.size_reduction_percent == null) {
+      return null;
+    }
+    const direction = job.size_reduction_percent >= 0 ? 'smaller' : 'larger';
+    const pct = Math.abs(job.size_reduction_percent).toFixed(1);
+    return `${pct}% ${direction} (${this.formatBytes(job.input_size_bytes)} -> ${this.formatBytes(job.output_size_bytes)})`;
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+    const units = ['KB', 'MB', 'GB'];
+    let value = bytes / 1024;
+    let idx = 0;
+    while (value >= 1024 && idx < units.length - 1) {
+      value /= 1024;
+      idx += 1;
+    }
+    return `${value.toFixed(1)} ${units[idx]}`;
+  }
+
+  private downloadName(originalFilename: string, jobId: string, jobType: JobType): string {
+    const suffix = jobType === 'compress' ? '_compressed' : '_fixed';
     const lower = originalFilename.toLowerCase();
     if (lower.endsWith('.pdf')) {
-      return `${originalFilename.slice(0, -4)}_fixed.pdf`;
+      return `${originalFilename.slice(0, -4)}${suffix}.pdf`;
     }
-    return `${jobId}_fixed.pdf`;
+    return `${jobId}${suffix}.pdf`;
   }
 
   private requireAuthToken(): string | null {
