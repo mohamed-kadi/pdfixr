@@ -7,6 +7,7 @@ Multi-tenant SaaS starter for PDF processing operations across viewers (Preview,
 - Multi-operation PDF processing:
   - `font_fix` (serif-safe AcroForm normalization: `/DA`, `/DR`, `/XFA` cleanup)
   - `compress` (stream/object recompression for smaller files)
+  - `merge` (combine 2+ PDFs into one file in upload order)
   - Compression result includes input/output size and reduction %
 - Async background jobs
 - Storage abstraction for local disk and S3-compatible object storage
@@ -177,7 +178,8 @@ PATH=/opt/homebrew/bin:$PATH npm start
 - If needed, run `/forgot-password` then `/reset-password` to recover account access.
 - By default, reset emails are written to `backend/storage/mail_outbox/` (file delivery mode).
 - Job status notifications are also written there in `file` mode.
-- Upload `input.pdf` and choose an operation (`font_fix` or `compress`).
+- Upload `input.pdf` and choose an operation (`font_fix`, `compress`, or `merge`).
+- For `merge`, select 2+ PDF files before submitting.
 - Watch status move `queued -> processing -> completed`.
 - Download the processed PDF.
 - This page is client-facing (upload, status, download only).
@@ -276,7 +278,7 @@ Auth hardening:
 
 ### Jobs
 
-- `POST /api/v1/jobs` (multipart: `file`, optional `job_type`, optional `job_options`)
+- `POST /api/v1/jobs` (multipart: `file` for single-file jobs, or repeated `files` for `job_type=merge`; optional `job_type`, optional `job_options`)
 - `GET /api/v1/jobs`
 - `GET /api/v1/jobs/{job_id}`
 - `GET /api/v1/jobs/{job_id}/download`

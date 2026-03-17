@@ -113,17 +113,17 @@ def _workspace_info(repo: UsageRepository, workspace: Workspace) -> WorkspaceInf
     )
 
 
-def _normalize_job_options(*, job_type: JobType, raw_options: str | None) -> str | None:
-    if raw_options is None or not raw_options.strip():
-        return None
+def _normalize_job_options(*, job_type: JobType, raw_options: str | None) -> dict[str, object]:
+    parsed: dict[str, object] = {}
+    if raw_options is not None and raw_options.strip():
+        try:
+            parsed_raw = json.loads(raw_options)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"job_options must be valid JSON: {exc.msg}") from exc
 
-    try:
-        parsed = json.loads(raw_options)
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail=f"job_options must be valid JSON: {exc.msg}") from exc
-
-    if not isinstance(parsed, dict):
-        raise HTTPException(status_code=400, detail="job_options must be a JSON object.")
+        if not isinstance(parsed_raw, dict):
+            raise HTTPException(status_code=400, detail="job_options must be a JSON object.")
+        parsed = parsed_raw
 
     if job_type == JobType.COMPRESS:
         normalized = {}
@@ -131,13 +131,16 @@ def _normalize_job_options(*, job_type: JobType, raw_options: str | None) -> str
             if not isinstance(parsed["linearize"], bool):
                 raise HTTPException(status_code=400, detail="job_options.linearize must be a boolean.")
             normalized["linearize"] = parsed["linearize"]
-        return json.dumps(normalized, separators=(",", ":")) if normalized else None
+        return normalized
 
-    if job_type == JobType.FONT_FIX:
+    if job_type in {JobType.FONT_FIX, JobType.MERGE}:
         # Reserved for future per-tool options while keeping strict validation now.
         if parsed:
-            raise HTTPException(status_code=400, detail="job_options are not supported for job_type=font_fix yet.")
-        return None
+            raise HTTPException(
+                status_code=400,
+                detail=f"job_options are not supported for job_type={job_type.value} yet.",
+            )
+        return {}
 
     raise HTTPException(status_code=400, detail=f"Unsupported job type: {job_type.value}")
 
@@ -713,7 +716,8 @@ def list_jobs(request: Request, limit: int = 20, workspace: Workspace = Depends(
 @router.post("/jobs", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
 def create_job(
     request: Request,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(default=None),
+    files: list[UploadFile] | None = File(default=None),
     job_type: JobType = Form(default=JobType.FONT_FIX),
     job_options: str | None = Form(default=None),
     workspace: Workspace = Depends(get_current_workspace),
@@ -721,45 +725,89 @@ def create_job(
     app_settings = request.app.state.settings
     storage = request.app.state.storage
     normalized_job_options = _normalize_job_options(job_type=job_type, raw_options=job_options)
+    uploaded_files: list[UploadFile] = []
+    if file is not None and file.filename:
+        uploaded_files.append(file)
+    if files:
+        uploaded_files.extend([item for item in files if item and item.filename])
 
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="File name is required.")
-
-    extension = Path(file.filename).suffix.lower()
-    if extension not in app_settings.allowed_extensions:
-        raise HTTPException(status_code=400, detail=f"Unsupported file extension: {extension}")
+    if job_type == JobType.MERGE:
+        if len(uploaded_files) < 2:
+            raise HTTPException(status_code=400, detail="job_type=merge requires at least 2 PDF files.")
+    else:
+        if len(uploaded_files) == 0:
+            raise HTTPException(status_code=400, detail="File upload is required.")
+        if len(uploaded_files) > 1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"job_type={job_type.value} accepts exactly 1 file.",
+            )
 
     job_id = str(uuid4())
     workspace_input_dir = app_settings.input_dir / workspace.id
     workspace_input_dir.mkdir(parents=True, exist_ok=True)
-    input_path = workspace_input_dir / f"{job_id}{extension}"
+    max_mb = app_settings.max_upload_bytes // (1024 * 1024)
 
-    with input_path.open("wb") as output_file:
-        shutil.copyfileobj(file.file, output_file)
-
-    size = input_path.stat().st_size
-    if size == 0:
-        input_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-
-    if size > app_settings.max_upload_bytes:
-        input_path.unlink(missing_ok=True)
-        max_mb = app_settings.max_upload_bytes // (1024 * 1024)
-        raise HTTPException(status_code=413, detail=f"File exceeds {max_mb}MB limit.")
-
+    staged_input_references: list[str] = []
+    total_size = 0
     try:
-        input_reference = storage.stage_upload_file(
-            workspace_id=workspace.id,
-            job_id=job_id,
-            extension=extension,
-            local_source_path=input_path,
-        )
-    except StorageError as exc:
-        input_path.unlink(missing_ok=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unable to persist uploaded file: {exc}",
-        ) from exc
+        for index, uploaded in enumerate(uploaded_files):
+            filename = (uploaded.filename or "").strip()
+            if not filename:
+                raise HTTPException(status_code=400, detail="File name is required.")
+
+            extension = Path(filename).suffix.lower()
+            if extension not in app_settings.allowed_extensions:
+                raise HTTPException(status_code=400, detail=f"Unsupported file extension: {extension}")
+
+            staged_job_id = job_id if index == 0 else f"{job_id}_{index + 1}"
+            input_path = workspace_input_dir / f"{staged_job_id}{extension}"
+            with input_path.open("wb") as output_file:
+                shutil.copyfileobj(uploaded.file, output_file)
+
+            size = input_path.stat().st_size
+            if size == 0:
+                input_path.unlink(missing_ok=True)
+                raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+            if size > app_settings.max_upload_bytes:
+                input_path.unlink(missing_ok=True)
+                raise HTTPException(status_code=413, detail=f"File exceeds {max_mb}MB limit.")
+
+            try:
+                input_reference = storage.stage_upload_file(
+                    workspace_id=workspace.id,
+                    job_id=staged_job_id,
+                    extension=extension,
+                    local_source_path=input_path,
+                )
+            except StorageError as exc:
+                input_path.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Unable to persist uploaded file: {exc}",
+                ) from exc
+
+            staged_input_references.append(input_reference)
+            total_size += size
+    except HTTPException:
+        for reference in staged_input_references:
+            storage.delete_reference(reference)
+        raise
+    except Exception:
+        for reference in staged_input_references:
+            storage.delete_reference(reference)
+        raise
+
+    input_reference = staged_input_references[0]
+    job_options_payload = dict(normalized_job_options)
+    if job_type == JobType.MERGE:
+        job_options_payload["input_references"] = staged_input_references
+    stored_job_options = json.dumps(job_options_payload, separators=(",", ":")) if job_options_payload else None
+
+    primary_filename = Path(uploaded_files[0].filename or "input.pdf").name
+    original_filename = primary_filename
+    if job_type == JobType.MERGE:
+        original_filename = f"merge_{len(uploaded_files)}_files.pdf"
 
     period = period_start_utc()
 
@@ -798,14 +846,14 @@ def create_job(
                 job=Job(
                     id=job_id,
                     workspace_id=current_workspace.id,
-                    original_filename=Path(file.filename).name,
+                    original_filename=original_filename,
                     input_path=input_reference,
                     output_path=None,
-                    input_size_bytes=size,
+                    input_size_bytes=total_size,
                     output_size_bytes=None,
                     status=JobStatus.QUEUED,
                     job_type=job_type.value,
-                    job_options=normalized_job_options,
+                    job_options=stored_job_options,
                     attempt_count=0,
                     max_attempts=app_settings.job_max_attempts,
                     next_retry_at=None,
@@ -847,18 +895,21 @@ def create_job(
                 details={
                     "filename": job.original_filename,
                     "job_type": job.job_type,
-                    "size_bytes": size,
+                    "size_bytes": total_size,
+                    "input_files_count": len(uploaded_files),
                     "period_start": str(period),
                     "remaining_jobs": max(0, current_workspace.monthly_job_limit - current_jobs),
                 },
             )
     except HTTPException:
         if not job:
-            storage.delete_reference(input_reference)
+            for reference in staged_input_references:
+                storage.delete_reference(reference)
         raise
     except Exception:
         if not job:
-            storage.delete_reference(input_reference)
+            for reference in staged_input_references:
+                storage.delete_reference(reference)
         raise
 
     try:
@@ -924,6 +975,8 @@ def download_job_result(
     suffix = "_fixed"
     if job.job_type == JobType.COMPRESS.value:
         suffix = "_compressed"
+    elif job.job_type == JobType.MERGE.value:
+        suffix = "_merged"
     elif job.job_type != JobType.FONT_FIX.value:
         suffix = "_processed"
     download_name = f"{Path(job.original_filename).stem}{suffix}.pdf"

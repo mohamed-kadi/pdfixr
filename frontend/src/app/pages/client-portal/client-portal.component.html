@@ -95,12 +95,21 @@
       </div>
       <form class="upload-form" (ngSubmit)="submit()">
         <label for="job-type-input" class="input-label">Operation</label>
-        <select id="job-type-input" [(ngModel)]="selectedJobType" name="jobType">
+        <select id="job-type-input" [(ngModel)]="selectedJobType" name="jobType" (ngModelChange)="onJobTypeChanged()">
           <option [ngValue]="'font_fix'">Font Fix (Preview/Chrome consistency)</option>
           <option [ngValue]="'compress'">Compress PDF (smaller file size)</option>
+          <option [ngValue]="'merge'">Merge PDFs (combine multiple files)</option>
         </select>
-        <label for="file-input" class="input-label">Select PDF</label>
-        <input id="file-input" type="file" accept="application/pdf,.pdf" (change)="onFileSelected($event)" />
+        <label for="file-input" class="input-label">
+          {{ isMergeSelected ? 'Select PDFs (2+ files)' : 'Select PDF' }}
+        </label>
+        <input
+          id="file-input"
+          type="file"
+          accept="application/pdf,.pdf"
+          [attr.multiple]="isMergeSelected ? '' : null"
+          (change)="onFileSelected($event)"
+        />
         <p class="file-meta">Selected: {{ selectedFileName }}</p>
         <button id="submit-button" type="submit" [disabled]="isSubmitting || isLimitReached">
           {{ isSubmitting ? 'Uploading...' : 'Run Operation' }}
