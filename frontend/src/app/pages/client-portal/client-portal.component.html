@@ -93,28 +93,102 @@
       <div class="section-head">
         <h2>Upload PDF</h2>
       </div>
-      <form class="upload-form" (ngSubmit)="submit()">
-        <label for="job-type-input" class="input-label">Operation</label>
-        <select id="job-type-input" [(ngModel)]="selectedJobType" name="jobType" (ngModelChange)="onJobTypeChanged()">
-          <option [ngValue]="'font_fix'">Font Fix (Preview/Chrome consistency)</option>
-          <option [ngValue]="'compress'">Compress PDF (smaller file size)</option>
-          <option [ngValue]="'merge'">Merge PDFs (combine multiple files)</option>
-        </select>
-        <label for="file-input" class="input-label">
-          {{ isMergeSelected ? 'Select PDFs (2+ files)' : 'Select PDF' }}
-        </label>
-        <input
-          id="file-input"
-          type="file"
-          accept="application/pdf,.pdf"
-          [attr.multiple]="isMergeSelected ? '' : null"
-          (change)="onFileSelected($event)"
-        />
-        <p class="file-meta">Selected: {{ selectedFileName }}</p>
-        <button id="submit-button" type="submit" [disabled]="isSubmitting || isLimitReached">
-          {{ isSubmitting ? 'Uploading...' : 'Run Operation' }}
+      <div class="operation-tabs" role="tablist" aria-label="PDF operations">
+        <button
+          type="button"
+          role="tab"
+          *ngFor="let operation of operationTabs; trackBy: trackByOperationType"
+          class="operation-tab"
+          [class.active]="selectedJobType === operation.type"
+          [attr.aria-selected]="selectedJobType === operation.type"
+          (click)="selectOperation(operation.type)"
+        >
+          <span class="tab-icon" [attr.data-tone]="operation.tone" aria-hidden="true">{{ operation.icon }}</span>
+          <span class="tab-copy">
+            <span class="tab-title">{{ operation.title }}</span>
+            <span class="tab-subtitle">{{ operation.subtitle }}</span>
+          </span>
         </button>
-      </form>
+      </div>
+
+      <article class="operation-intro">
+        <p class="operation-eyebrow">{{ activeOperation.subtitle }}</p>
+        <h3>{{ activeOperation.title }}</h3>
+        <p>{{ activeOperation.details }}</p>
+        <div class="operation-facts">
+          <article class="operation-fact">
+            <p class="fact-label">Input</p>
+            <p class="fact-value">{{ activeOperation.inputGuide }}</p>
+          </article>
+          <article class="operation-fact">
+            <p class="fact-label">Output</p>
+            <p class="fact-value">{{ activeOperation.outputGuide }}</p>
+          </article>
+        </div>
+      </article>
+
+      <div class="upload-layout" [class.with-preview]="isSplitSelected">
+        <form class="upload-form" (ngSubmit)="submit()">
+          <label for="file-input" class="input-label">
+            {{ isMergeSelected ? 'Select PDFs (2+ files)' : 'Select PDF' }}
+          </label>
+          <input
+            id="file-input"
+            type="file"
+            accept="application/pdf,.pdf"
+            [attr.multiple]="isMergeSelected ? '' : null"
+            (change)="onFileSelected($event)"
+          />
+          <label for="split-ranges-input" class="input-label" *ngIf="isSplitSelected">Split Ranges</label>
+          <input
+            *ngIf="isSplitSelected"
+            id="split-ranges-input"
+            type="text"
+            name="splitRanges"
+            [(ngModel)]="splitRanges"
+            placeholder="Example: 1-2,3,4-6"
+          />
+          <p class="file-meta" *ngIf="isMergeSelected">Files will be merged in the same order as selected.</p>
+          <p class="file-meta" *ngIf="isSplitSelected && splitDetectedPageCount !== null">
+            Detected pages: {{ splitDetectedPageCount }}
+          </p>
+          <p class="file-meta">Selected: {{ selectedFileName }}</p>
+          <button id="submit-button" type="submit" [disabled]="isSubmitting || isLimitReached">
+            {{ isSubmitting ? 'Uploading...' : 'Run Operation' }}
+          </button>
+        </form>
+
+        <aside class="split-preview" *ngIf="isSplitSelected">
+          <p class="preview-title">Quick View</p>
+          <div class="preview-actions">
+            <button
+              type="button"
+              class="ghost"
+              (click)="detectSplitPageCount()"
+              [disabled]="splitInspecting || selectedFiles.length !== 1"
+            >
+              {{ splitInspecting ? 'Detecting...' : 'Detect Page Count' }}
+            </button>
+            <button
+              type="button"
+              class="ghost"
+              (click)="splitPreviewOpen ? closeSplitPreview() : openSplitPreview()"
+              [disabled]="selectedFiles.length !== 1"
+            >
+              {{ splitPreviewOpen ? 'Hide Preview' : 'Open Preview' }}
+            </button>
+          </div>
+          <p class="preview-meta" *ngIf="splitInspecting">Reading PDF pages...</p>
+          <p class="preview-meta" *ngIf="!splitInspecting && splitDetectedPageCount !== null">
+            Total pages: <strong>{{ splitDetectedPageCount }}</strong>
+          </p>
+          <p class="preview-error" *ngIf="splitInspectError">{{ splitInspectError }}</p>
+          <div class="preview-window" *ngIf="splitPreviewOpen && splitPreviewUrl">
+            <iframe [src]="splitPreviewUrl" title="PDF quick preview"></iframe>
+          </div>
+          <p class="preview-note" *ngIf="selectedFiles.length !== 1">Select one PDF to enable preview tools.</p>
+        </aside>
+      </div>
       <p class="status" [ngClass]="statusStyle">{{ statusMessage }}</p>
     </section>
 

@@ -26,6 +26,7 @@ class JobType(str, Enum):
     FONT_FIX = "font_fix"
     COMPRESS = "compress"
     MERGE = "merge"
+    SPLIT = "split"
 
 
 class BillingStatus(str, Enum):

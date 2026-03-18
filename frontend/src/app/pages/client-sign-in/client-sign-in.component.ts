@@ -1,17 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { JobType } from '../../core/models';
 import { SessionService } from '../../core/session.service';
 
 type UiState = 'idle' | 'busy' | 'done' | 'fail';
-
-interface SignInFeature {
-  tag: string;
-  title: string;
-  description: string;
-}
 
 @Component({
   selector: 'app-client-sign-in',
@@ -20,7 +15,7 @@ interface SignInFeature {
   templateUrl: './client-sign-in.component.html',
   styleUrl: './client-sign-in.component.css',
 })
-export class ClientSignInComponent implements OnInit, OnDestroy {
+export class ClientSignInComponent implements OnInit {
   email = '';
   password = '';
   showPassword = false;
@@ -28,50 +23,22 @@ export class ClientSignInComponent implements OnInit, OnDestroy {
   statusMessage = 'Enter your credentials to continue.';
   statusStyle: UiState = 'idle';
   isSubmitting = false;
-
-  activeFeatureIndex = 0;
-  readonly features: SignInFeature[] = [
-    {
-      tag: 'Form Quality',
-      title: 'Consistent cross-viewer output',
-      description: 'Standardize complex PDF forms for more predictable behavior across major viewers.',
-    },
-    {
-      tag: 'Processing',
-      title: 'Background job pipeline',
-      description: 'Submit files once and follow real-time status updates from queue to completion.',
-    },
-    {
-      tag: 'Delivery',
-      title: 'Fast download workflow',
-      description: 'Access finalized files from a clean recent-jobs history designed for repeat work.',
-    },
-    {
-      tag: 'Usage',
-      title: 'Live workspace capacity',
-      description: 'Track monthly usage and remaining processing capacity directly in the portal.',
-    },
-    {
-      tag: 'Access',
-      title: 'Built-in account recovery',
-      description: 'Reset access quickly with the integrated password recovery flow when needed.',
-    },
-  ];
-
-  private carouselTimer: ReturnType<typeof setInterval> | null = null;
+  requestedOperation: JobType | null = null;
+  requestedOperationLabel: string | null = null;
 
   constructor(
     private readonly api: ApiService,
     private readonly session: SessionService,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
-    this.startCarousel();
-  }
-
-  ngOnDestroy(): void {
-    this.stopCarousel();
+    this.requestedOperation = this.readRequestedOperation();
+    if (this.requestedOperation) {
+      this.requestedOperationLabel = this.jobTypeLabel(this.requestedOperation);
+      this.setStatus(`Sign in to try ${this.requestedOperationLabel}.`, 'idle');
+    }
   }
 
   signIn(): void {
@@ -108,7 +75,9 @@ export class ClientSignInComponent implements OnInit, OnDestroy {
             expiresAt: response.expires_at,
           });
           this.setStatus('Signed in successfully.', 'done');
-          this.router.navigateByUrl('/');
+          this.router.navigate(['/portal'], {
+            queryParams: this.requestedOperation ? { operation: this.requestedOperation } : undefined,
+          });
         },
         error: (error: unknown) => {
           this.setStatus(this.api.extractErrorMessage(error), 'fail');
@@ -123,33 +92,30 @@ export class ClientSignInComponent implements OnInit, OnDestroy {
     this.showPassword = !this.showPassword;
   }
 
-  previousFeature(): void {
-    if (this.features.length === 0) {
-      return;
-    }
-    this.activeFeatureIndex = (this.activeFeatureIndex - 1 + this.features.length) % this.features.length;
-    this.restartCarousel();
-  }
-
-  nextFeature(): void {
-    if (this.features.length === 0) {
-      return;
-    }
-    this.activeFeatureIndex = (this.activeFeatureIndex + 1) % this.features.length;
-    this.restartCarousel();
-  }
-
-  goToFeature(index: number): void {
-    if (index < 0 || index >= this.features.length) {
-      return;
-    }
-    this.activeFeatureIndex = index;
-    this.restartCarousel();
-  }
-
   private setStatus(message: string, style: UiState): void {
     this.statusMessage = message;
     this.statusStyle = style;
+  }
+
+  private readRequestedOperation(): JobType | null {
+    const raw = this.route.snapshot.queryParamMap.get('operation');
+    if (raw === 'font_fix' || raw === 'compress' || raw === 'merge' || raw === 'split') {
+      return raw;
+    }
+    return null;
+  }
+
+  private jobTypeLabel(type: JobType): string {
+    if (type === 'font_fix') {
+      return 'Fix Form Fields';
+    }
+    if (type === 'compress') {
+      return 'Compress PDF';
+    }
+    if (type === 'merge') {
+      return 'Merge PDFs';
+    }
+    return 'Split PDF';
   }
 
   private isValidEmail(value: string): boolean {
@@ -157,27 +123,5 @@ export class ClientSignInComponent implements OnInit, OnDestroy {
       return false;
     }
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-  }
-
-  private startCarousel(): void {
-    this.stopCarousel();
-    this.carouselTimer = setInterval(() => {
-      if (this.features.length === 0) {
-        return;
-      }
-      this.activeFeatureIndex = (this.activeFeatureIndex + 1) % this.features.length;
-    }, 4500);
-  }
-
-  private stopCarousel(): void {
-    if (!this.carouselTimer) {
-      return;
-    }
-    clearInterval(this.carouselTimer);
-    this.carouselTimer = null;
-  }
-
-  private restartCarousel(): void {
-    this.startCarousel();
   }
 }

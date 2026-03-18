@@ -8,6 +8,7 @@ Multi-tenant SaaS starter for PDF processing operations across viewers (Preview,
   - `font_fix` (serif-safe AcroForm normalization: `/DA`, `/DR`, `/XFA` cleanup)
   - `compress` (stream/object recompression for smaller files)
   - `merge` (combine 2+ PDFs into one file in upload order)
+  - `split` (export selected page ranges into a downloadable ZIP of PDFs)
   - Compression result includes input/output size and reduction %
 - Async background jobs
 - Storage abstraction for local disk and S3-compatible object storage
@@ -178,10 +179,14 @@ PATH=/opt/homebrew/bin:$PATH npm start
 - If needed, run `/forgot-password` then `/reset-password` to recover account access.
 - By default, reset emails are written to `backend/storage/mail_outbox/` (file delivery mode).
 - Job status notifications are also written there in `file` mode.
-- Upload `input.pdf` and choose an operation (`font_fix`, `compress`, or `merge`).
+- Upload `input.pdf` and choose an operation (`font_fix`, `compress`, `merge`, or `split`).
+- Operations are shown as dedicated tabs with clear descriptions in the upload panel.
 - For `merge`, select 2+ PDF files before submitting.
+- For `split`, upload one PDF and enter ranges in `job_options` format (example: `{"ranges":"1-2,3,4-6"}`).
+- In split mode, use `Detect Page Count` and `Open Preview` in the right-side quick view panel before submit.
+- Split ranges are validated against the uploaded PDF page count before the job is queued.
 - Watch status move `queued -> processing -> completed`.
-- Download the processed PDF.
+- Download the processed file.
 - This page is client-facing (upload, status, download only).
 
 4. Open Admin UI at `http://localhost:4200/admin/sign-in`:
@@ -278,7 +283,8 @@ Auth hardening:
 
 ### Jobs
 
-- `POST /api/v1/jobs` (multipart: `file` for single-file jobs, or repeated `files` for `job_type=merge`; optional `job_type`, optional `job_options`)
+- `POST /api/v1/jobs` (multipart: `file` for single-file jobs, repeated `files` for `job_type=merge`; optional `job_type`, optional `job_options`)
+  - For `job_type=split`, provide `job_options` JSON with `ranges` (example: `{"ranges":"1-2,3,4-6"}`).
 - `GET /api/v1/jobs`
 - `GET /api/v1/jobs/{job_id}`
 - `GET /api/v1/jobs/{job_id}/download`

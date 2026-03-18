@@ -12,6 +12,7 @@ import {
   JobListResponse,
   JobResponse,
   JobType,
+  PdfInspectResponse,
   PasswordResetConfirmRequest,
   PasswordResetConfirmResponse,
   PasswordResetRequestPayload,
@@ -114,7 +115,20 @@ export class ApiService {
     });
   }
 
-  createJob(authToken: string, files: File[], jobType: JobType = 'font_fix'): Observable<JobResponse> {
+  inspectPdf(authToken: string, file: File): Observable<PdfInspectResponse> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http.post<PdfInspectResponse>(`${this.baseUrl}/pdf/inspect`, formData, {
+      headers: this.authHeaders(authToken),
+    });
+  }
+
+  createJob(
+    authToken: string,
+    files: File[],
+    jobType: JobType = 'font_fix',
+    jobOptions?: Record<string, unknown>
+  ): Observable<JobResponse> {
     const formData = new FormData();
     if (jobType === 'merge') {
       files.forEach((file) => {
@@ -124,6 +138,9 @@ export class ApiService {
       formData.append('file', files[0], files[0].name);
     }
     formData.append('job_type', jobType);
+    if (jobOptions && Object.keys(jobOptions).length > 0) {
+      formData.append('job_options', JSON.stringify(jobOptions));
+    }
     return this.http.post<JobResponse>(`${this.baseUrl}/jobs`, formData, {
       headers: this.authHeaders(authToken),
     });

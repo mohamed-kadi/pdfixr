@@ -9,10 +9,17 @@ import { AdminUsersComponent } from './pages/admin-users/admin-users.component';
 import { AdminWorkspacesComponent } from './pages/admin-workspaces/admin-workspaces.component';
 import { ClientPortalComponent } from './pages/client-portal/client-portal.component';
 import { ClientSignInComponent } from './pages/client-sign-in/client-sign-in.component';
+import { ClientSignUpComponent } from './pages/client-sign-up/client-sign-up.component';
 import { ForgotPasswordComponent } from './pages/forgot-password/forgot-password.component';
+import { LandingComponent } from './pages/landing/landing.component';
 import { ResetPasswordComponent } from './pages/reset-password/reset-password.component';
 
 export const routes: Routes = [
+  {
+    path: '',
+    component: LandingComponent,
+    title: 'PDF Form Fixer',
+  },
   {
     path: 'sign-in',
     component: ClientSignInComponent,
@@ -20,10 +27,16 @@ export const routes: Routes = [
     title: 'Client Sign In',
   },
   {
-    path: '',
+    path: 'sign-up',
+    component: ClientSignUpComponent,
+    canActivate: [clientSignInRedirectGuard],
+    title: 'Client Sign Up',
+  },
+  {
+    path: 'portal',
     component: ClientPortalComponent,
     canActivate: [clientAuthGuard],
-    title: 'PDF Form Fixer',
+    title: 'Client Portal',
   },
   {
     path: 'forgot-password',

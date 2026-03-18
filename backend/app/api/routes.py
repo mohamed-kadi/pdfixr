@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import hashlib
 import json
 import shutil
@@ -9,6 +10,8 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, RedirectResponse, Response
+from pikepdf import PasswordError, PdfError
+import pikepdf
 
 from ..config import settings
 from ..dependencies import get_current_user, get_current_workspace, require_admin
@@ -32,6 +35,7 @@ from ..schemas import (
     PasswordResetConfirmResponse,
     PasswordResetRequest,
     PasswordResetRequestResponse,
+    PdfInspectResponse,
     UserCreateRequest,
     UserLoginRequest,
     UserLoginResponse,
@@ -59,6 +63,7 @@ from ..services.plans import (
     resolve_monthly_limit,
 )
 from ..services.mailer import PasswordResetEmail
+from ..services.pdf_processor import PdfProcessingError, validate_split_ranges_for_pdf
 from ..services.storage import StorageError
 from ..services.stripe_webhook import StripeSignatureError, normalize_billing_payload, verify_stripe_signature
 
@@ -132,6 +137,41 @@ def _normalize_job_options(*, job_type: JobType, raw_options: str | None) -> dic
                 raise HTTPException(status_code=400, detail="job_options.linearize must be a boolean.")
             normalized["linearize"] = parsed["linearize"]
         return normalized
+
+    if job_type == JobType.SPLIT:
+        ranges = parsed.get("ranges")
+        if not isinstance(ranges, str) or not ranges.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="job_options.ranges is required for job_type=split (example: 1-2,3,4-6).",
+            )
+        range_parts = [part.strip() for part in ranges.split(",") if part.strip()]
+        if not range_parts:
+            raise HTTPException(
+                status_code=400,
+                detail="job_options.ranges must contain at least one page range.",
+            )
+        for part in range_parts:
+            if "-" in part:
+                start_raw, end_raw = part.split("-", 1)
+            else:
+                start_raw, end_raw = part, part
+            if not start_raw.isdigit() or not end_raw.isdigit():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid split range format: {part}",
+                )
+            if int(start_raw) < 1 or int(end_raw) < 1 or int(start_raw) > int(end_raw):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid split range values: {part}",
+                )
+        if any(key not in {"ranges"} for key in parsed.keys()):
+            raise HTTPException(
+                status_code=400,
+                detail="Only job_options.ranges is supported for job_type=split.",
+            )
+        return {"ranges": ranges.strip()}
 
     if job_type in {JobType.FONT_FIX, JobType.MERGE}:
         # Reserved for future per-tool options while keeping strict validation now.
@@ -713,6 +753,44 @@ def list_jobs(request: Request, limit: int = 20, workspace: Workspace = Depends(
         return JobListResponse(items=[_to_job_response(request, job) for job in jobs])
 
 
+@router.post("/pdf/inspect", response_model=PdfInspectResponse)
+def inspect_pdf(
+    request: Request,
+    file: UploadFile = File(...),
+    _: Workspace = Depends(get_current_workspace),
+) -> PdfInspectResponse:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File name is required.")
+
+    app_settings = request.app.state.settings
+    extension = Path(file.filename).suffix.lower()
+    if extension not in app_settings.allowed_extensions:
+        raise HTTPException(status_code=400, detail=f"Unsupported file extension: {extension}")
+
+    payload = file.file.read(app_settings.max_upload_bytes + 1)
+    size = len(payload)
+    if size == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if size > app_settings.max_upload_bytes:
+        max_mb = app_settings.max_upload_bytes // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"File exceeds {max_mb}MB limit.")
+
+    try:
+        with pikepdf.open(io.BytesIO(payload)) as pdf:
+            page_count = len(pdf.pages)
+            if page_count <= 0:
+                raise HTTPException(status_code=400, detail="PDF has no pages.")
+    except PasswordError as exc:
+        raise HTTPException(status_code=400, detail="PDF is locked with a password that was not provided.") from exc
+    except PdfError as exc:
+        raise HTTPException(status_code=400, detail=f"Could not open PDF: {exc}") from exc
+
+    return PdfInspectResponse(
+        file_name=Path(file.filename).name,
+        page_count=page_count,
+    )
+
+
 @router.post("/jobs", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
 def create_job(
     request: Request,
@@ -725,6 +803,16 @@ def create_job(
     app_settings = request.app.state.settings
     storage = request.app.state.storage
     normalized_job_options = _normalize_job_options(job_type=job_type, raw_options=job_options)
+    split_ranges: str | None = None
+    if job_type == JobType.SPLIT:
+        raw_split_ranges = normalized_job_options.get("ranges")
+        if not isinstance(raw_split_ranges, str) or not raw_split_ranges.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="job_options.ranges is required for job_type=split (example: 1-2,3,4-6).",
+            )
+        split_ranges = raw_split_ranges.strip()
+
     uploaded_files: list[UploadFile] = []
     if file is not None and file.filename:
         uploaded_files.append(file)
@@ -750,6 +838,7 @@ def create_job(
 
     staged_input_references: list[str] = []
     total_size = 0
+    split_page_count: int | None = None
     try:
         for index, uploaded in enumerate(uploaded_files):
             filename = (uploaded.filename or "").strip()
@@ -772,6 +861,13 @@ def create_job(
             if size > app_settings.max_upload_bytes:
                 input_path.unlink(missing_ok=True)
                 raise HTTPException(status_code=413, detail=f"File exceeds {max_mb}MB limit.")
+
+            if job_type == JobType.SPLIT and split_ranges is not None:
+                try:
+                    split_page_count = validate_split_ranges_for_pdf(input_path, ranges=split_ranges)
+                except PdfProcessingError as exc:
+                    input_path.unlink(missing_ok=True)
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
 
             try:
                 input_reference = storage.stage_upload_file(
@@ -897,6 +993,8 @@ def create_job(
                     "job_type": job.job_type,
                     "size_bytes": total_size,
                     "input_files_count": len(uploaded_files),
+                    "split_ranges": split_ranges,
+                    "split_page_count": split_page_count,
                     "period_start": str(period),
                     "remaining_jobs": max(0, current_workspace.monthly_job_limit - current_jobs),
                 },
@@ -973,13 +1071,19 @@ def download_job_result(
     app_settings = request.app.state.settings
     storage = request.app.state.storage
     suffix = "_fixed"
+    extension = ".pdf"
+    media_type = "application/pdf"
     if job.job_type == JobType.COMPRESS.value:
         suffix = "_compressed"
     elif job.job_type == JobType.MERGE.value:
         suffix = "_merged"
+    elif job.job_type == JobType.SPLIT.value:
+        suffix = "_split"
+        extension = ".zip"
+        media_type = "application/zip"
     elif job.job_type != JobType.FONT_FIX.value:
         suffix = "_processed"
-    download_name = f"{Path(job.original_filename).stem}{suffix}.pdf"
+    download_name = f"{Path(job.original_filename).stem}{suffix}{extension}"
 
     try:
         signed_url = storage.generate_download_url(
@@ -1000,7 +1104,7 @@ def download_job_result(
     if not output_path or not output_path.exists():
         raise HTTPException(status_code=404, detail="Output file missing on server.")
 
-    return FileResponse(path=output_path, media_type="application/pdf", filename=download_name)
+    return FileResponse(path=output_path, media_type=media_type, filename=download_name)
 
 
 @router.post("/workspaces", response_model=WorkspaceCreateResponse, status_code=status.HTTP_201_CREATED)

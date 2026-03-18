@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import time
 from pathlib import Path
+import zipfile
 
 import pikepdf
 
@@ -37,6 +38,22 @@ def _upload_merge_pdfs(client, input_pdf_path: Path, *, count: int = 2, api_key:
     finally:
         for handle in handles:
             handle.close()
+
+
+def _upload_split_pdf(
+    client,
+    input_pdf_path: Path,
+    *,
+    ranges: str,
+    api_key: str = "dev-local-api-key",
+):
+    with input_pdf_path.open("rb") as f:
+        return client.post(
+            "/api/v1/jobs",
+            headers={"X-API-Key": api_key},
+            data={"job_type": "split", "job_options": f'{{"ranges":"{ranges}"}}'},
+            files={"file": ("input.pdf", f, "application/pdf")},
+        )
 
 
 def _wait_for_terminal_status(client, *, api_key: str, job_id: str, timeout_seconds: float = 10.0) -> dict:
@@ -104,6 +121,42 @@ def test_invalid_job_type_is_rejected(client, input_pdf_path: Path):
     assert created.status_code == 422
 
 
+def test_inspect_pdf_returns_page_count(client, input_pdf_path: Path):
+    with input_pdf_path.open("rb") as f:
+        response = client.post(
+            "/api/v1/pdf/inspect",
+            headers={"X-API-Key": "dev-local-api-key"},
+            files={"file": ("input.pdf", f, "application/pdf")},
+        )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["file_name"] == "input.pdf"
+    assert payload["page_count"] >= 1
+
+
+def test_split_job_type_completes_and_downloads_zip(client, input_pdf_path: Path):
+    created = _upload_split_pdf(client, input_pdf_path, ranges="1")
+    assert created.status_code == 201, created.text
+    job_id = created.json()["id"]
+
+    done = _wait_for_terminal_status(client, api_key="dev-local-api-key", job_id=job_id)
+    assert done["status"] == "completed"
+    assert done["job_type"] == "split"
+    assert done["input_size_bytes"] is not None
+    assert done["output_size_bytes"] is not None
+
+    downloaded = client.get(f"/api/v1/jobs/{job_id}/download", headers={"X-API-Key": "dev-local-api-key"})
+    assert downloaded.status_code == 200, downloaded.text
+
+    with zipfile.ZipFile(io.BytesIO(downloaded.content)) as archive:
+        members = archive.namelist()
+        assert len(members) == 1
+        assert members[0].endswith(".pdf")
+        with archive.open(members[0]) as part_stream:
+            with pikepdf.open(io.BytesIO(part_stream.read())) as part_pdf:
+                assert len(part_pdf.pages) == 1
+
+
 def test_compress_job_accepts_linearize_option(client, input_pdf_path: Path):
     with input_pdf_path.open("rb") as f:
         response = client.post(
@@ -153,3 +206,27 @@ def test_merge_rejects_non_empty_job_options(client, input_pdf_path: Path):
 
     assert response.status_code == 400
     assert "job_options are not supported for job_type=merge yet." == response.json()["detail"]
+
+
+def test_split_requires_ranges_option(client, input_pdf_path: Path):
+    with input_pdf_path.open("rb") as f:
+        response = client.post(
+            "/api/v1/jobs",
+            headers={"X-API-Key": "dev-local-api-key"},
+            data={"job_type": "split"},
+            files={"file": ("input.pdf", f, "application/pdf")},
+        )
+    assert response.status_code == 400
+    assert "job_options.ranges is required for job_type=split" in response.json()["detail"]
+
+
+def test_split_rejects_invalid_ranges(client, input_pdf_path: Path):
+    response = _upload_split_pdf(client, input_pdf_path, ranges="abc")
+    assert response.status_code == 400
+    assert "Invalid split range format" in response.json()["detail"]
+
+
+def test_split_rejects_ranges_exceeding_page_count(client, input_pdf_path: Path):
+    response = _upload_split_pdf(client, input_pdf_path, ranges="999-1000")
+    assert response.status_code == 400
+    assert "Split range exceeds page count" in response.json()["detail"]
