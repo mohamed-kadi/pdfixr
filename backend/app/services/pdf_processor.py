@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Sequence
 
 import pikepdf
 from pikepdf import PasswordError, PdfError
@@ -128,4 +129,37 @@ def compress_pdf_file(
         "input": str(input_path),
         "output": str(output_path),
         "compressed": True,
+    }
+
+
+def merge_pdf_files(
+    input_paths: Sequence[Path],
+    output_path: Path,
+) -> dict[str, str | int | bool]:
+    if len(input_paths) < 2:
+        raise PdfProcessingError("Merge requires at least 2 PDF files.")
+
+    for path in input_paths:
+        if not path.exists() or path.stat().st_size == 0:
+            raise PdfProcessingError(f"Input file is missing or empty: {path}")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with pikepdf.Pdf.new() as merged_pdf:
+            for input_path in input_paths:
+                with pikepdf.open(input_path) as source_pdf:
+                    merged_pdf.pages.extend(source_pdf.pages)
+            if len(merged_pdf.pages) == 0:
+                raise PdfProcessingError("Merge produced an empty PDF.")
+            merged_pdf.save(output_path)
+    except PasswordError as exc:
+        raise PdfProcessingError("One of the PDFs is locked with a password that was not provided.") from exc
+    except PdfError as exc:
+        raise PdfProcessingError(f"Could not merge PDFs: {exc}") from exc
+
+    return {
+        "output": str(output_path),
+        "merged": True,
+        "inputs_count": len(input_paths),
     }

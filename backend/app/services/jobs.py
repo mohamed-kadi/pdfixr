@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy.orm import sessionmaker
 
@@ -9,7 +11,7 @@ from ..config import settings
 from ..models import Job, JobStatus, JobType
 from ..repository import AuditRepository, JobRepository, UserRepository
 from .mailer import JobStatusEmail, build_job_notification_mailer
-from .pdf_processor import PdfProcessingError, compress_pdf_file, fix_pdf_file
+from .pdf_processor import PdfProcessingError, compress_pdf_file, fix_pdf_file, merge_pdf_files
 from .storage import StorageError, build_storage_backend
 
 
@@ -71,10 +73,12 @@ def _output_suffix_for_job_type(job_type: str) -> str:
         return "fixed"
     if job_type == JobType.COMPRESS.value:
         return "compressed"
+    if job_type == JobType.MERGE.value:
+        return "merged"
     return "processed"
 
 
-def _process_pdf_job(job: Job, input_path, output_path) -> None:
+def _job_options(job: Job) -> dict[str, object]:
     options: dict[str, object] = {}
     if job.job_options:
         try:
@@ -83,16 +87,37 @@ def _process_pdf_job(job: Job, input_path, output_path) -> None:
             parsed = {}
         if isinstance(parsed, dict):
             options = parsed
+    return options
 
+
+def _process_pdf_job(job: Job, *, storage, input_path: Path | None, output_path: Path) -> None:
+    options = _job_options(job)
     if job.job_type == JobType.FONT_FIX.value:
+        if input_path is None:
+            raise PdfProcessingError("Missing source file for font_fix job.")
         fix_pdf_file(input_path, output_path)
         return
     if job.job_type == JobType.COMPRESS.value:
+        if input_path is None:
+            raise PdfProcessingError("Missing source file for compress job.")
         compress_pdf_file(
             input_path,
             output_path,
             linearize=bool(options.get("linearize", False)),
         )
+        return
+    if job.job_type == JobType.MERGE.value:
+        raw_references = options.get("input_references")
+        if not isinstance(raw_references, list) or len(raw_references) < 2:
+            raise PdfProcessingError("Merge job is missing valid input_references.")
+        with ExitStack() as stack:
+            input_paths: list[Path] = []
+            for raw_ref in raw_references:
+                if not isinstance(raw_ref, str) or not raw_ref.strip():
+                    raise PdfProcessingError("Merge job contains invalid input reference.")
+                materialized = stack.enter_context(storage.materialize_input(raw_ref))
+                input_paths.append(materialized)
+            merge_pdf_files(input_paths, output_path)
         return
     raise PdfProcessingError(f"Unsupported job type: {job.job_type}")
 
@@ -200,8 +225,11 @@ def process_job(job_id: str, session_factory: sessionmaker) -> None:
         output_stage_path = output_stage_dir / f"{job.id}_{_output_suffix_for_job_type(job.job_type)}.pdf"
 
         try:
-            with storage.materialize_input(job.input_path) as input_path:
-                _process_pdf_job(job, input_path, output_stage_path)
+            if job.job_type == JobType.MERGE.value:
+                _process_pdf_job(job, storage=storage, input_path=None, output_path=output_stage_path)
+            else:
+                with storage.materialize_input(job.input_path) as input_path:
+                    _process_pdf_job(job, storage=storage, input_path=input_path, output_path=output_stage_path)
             output_size_bytes = output_stage_path.stat().st_size if output_stage_path.exists() else None
             output_reference = storage.stage_output_file(
                 workspace_id=job.workspace_id,

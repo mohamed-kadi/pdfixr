@@ -2,7 +2,7 @@ export type BillingStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'i
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 export type BillingEventStatus = 'received' | 'processed' | 'ignored' | 'failed';
 export type UserRole = 'admin' | 'client';
-export type JobType = 'font_fix' | 'compress';
+export type JobType = 'font_fix' | 'compress' | 'merge';
 
 export interface WorkspaceInfoResponse {
   id: string;

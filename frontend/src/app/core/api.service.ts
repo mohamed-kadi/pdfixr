@@ -114,9 +114,15 @@ export class ApiService {
     });
   }
 
-  createJob(authToken: string, file: File, jobType: JobType = 'font_fix'): Observable<JobResponse> {
+  createJob(authToken: string, files: File[], jobType: JobType = 'font_fix'): Observable<JobResponse> {
     const formData = new FormData();
-    formData.append('file', file, file.name);
+    if (jobType === 'merge') {
+      files.forEach((file) => {
+        formData.append('files', file, file.name);
+      });
+    } else if (files.length > 0) {
+      formData.append('file', files[0], files[0].name);
+    }
     formData.append('job_type', jobType);
     return this.http.post<JobResponse>(`${this.baseUrl}/jobs`, formData, {
       headers: this.authHeaders(authToken),

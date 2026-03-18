@@ -19,7 +19,7 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
   clientEmail = '';
   workspace: WorkspaceInfoResponse | null = null;
 
-  selectedFile: File | null = null;
+  selectedFiles: File[] = [];
   selectedJobType: JobType = 'font_fix';
 
   connectionMessage = 'Connection: not connected';
@@ -68,7 +68,11 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.selectedFile = input.files && input.files.length > 0 ? input.files[0] : null;
+    this.selectedFiles = input.files ? Array.from(input.files) : [];
+  }
+
+  onJobTypeChanged(): void {
+    this.selectedFiles = [];
   }
 
   submit(): void {
@@ -82,14 +86,20 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.selectedFile) {
-      this.setStatus('Select a PDF file first.', 'fail');
+    const selectedCount = this.selectedFiles.length;
+    if (this.selectedJobType === 'merge') {
+      if (selectedCount < 2) {
+        this.setStatus('Select at least 2 PDF files for merge.', 'fail');
+        return;
+      }
+    } else if (selectedCount !== 1) {
+      this.setStatus('Select 1 PDF file first.', 'fail');
       return;
     }
 
     this.isSubmitting = true;
-    this.setStatus(`Uploading file for ${this.jobTypeLabel(this.selectedJobType)}...`, 'busy');
-    this.api.createJob(authToken, this.selectedFile, this.selectedJobType).subscribe({
+    this.setStatus(`Uploading ${selectedCount} file(s) for ${this.jobTypeLabel(this.selectedJobType)}...`, 'busy');
+    this.api.createJob(authToken, this.selectedFiles, this.selectedJobType).subscribe({
       next: (job) => {
         this.activeJobId = job.id;
         this.setStatus(`File ${job.id.slice(0, 8)} submitted for ${this.jobTypeLabel(job.job_type)}.`, 'busy');
@@ -146,7 +156,17 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
   }
 
   get selectedFileName(): string {
-    return this.selectedFile?.name ?? 'No file selected';
+    if (this.selectedFiles.length === 0) {
+      return 'No files selected';
+    }
+    if (this.selectedFiles.length === 1) {
+      return this.selectedFiles[0].name;
+    }
+    return `${this.selectedFiles.length} files selected`;
+  }
+
+  get isMergeSelected(): boolean {
+    return this.selectedJobType === 'merge';
   }
 
   get workspaceName(): string {
@@ -297,6 +317,9 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
     if (type === 'compress') {
       return 'PDF Compression';
     }
+    if (type === 'merge') {
+      return 'PDF Merge';
+    }
     return 'Font Fix';
   }
 
@@ -327,7 +350,12 @@ export class ClientPortalComponent implements OnInit, OnDestroy {
   }
 
   private downloadName(originalFilename: string, jobId: string, jobType: JobType): string {
-    const suffix = jobType === 'compress' ? '_compressed' : '_fixed';
+    let suffix = '_fixed';
+    if (jobType === 'compress') {
+      suffix = '_compressed';
+    } else if (jobType === 'merge') {
+      suffix = '_merged';
+    }
     const lower = originalFilename.toLowerCase();
     if (lower.endsWith('.pdf')) {
       return `${originalFilename.slice(0, -4)}${suffix}.pdf`;
