@@ -30,6 +30,7 @@ class StorageBackend(Protocol):
         *,
         workspace_id: str,
         job_id: str,
+        extension: str = ".pdf",
         local_source_path: Path,
     ) -> str: ...
 
@@ -76,9 +77,11 @@ class LocalStorageBackend:
         *,
         workspace_id: str,
         job_id: str,
+        extension: str = ".pdf",
         local_source_path: Path,
     ) -> str:
-        destination = self.output_dir / workspace_id / f"{job_id}_fixed.pdf"
+        safe_extension = extension if extension.startswith(".") else f".{extension}"
+        destination = self.output_dir / workspace_id / f"{job_id}{safe_extension}"
         destination.parent.mkdir(parents=True, exist_ok=True)
         if local_source_path.resolve() != destination.resolve():
             shutil.copy2(local_source_path, destination)
@@ -157,9 +160,11 @@ class S3StorageBackend:
         *,
         workspace_id: str,
         job_id: str,
+        extension: str = ".pdf",
         local_source_path: Path,
     ) -> str:
-        key = f"output/{workspace_id}/{job_id}_fixed.pdf"
+        safe_extension = extension if extension.startswith(".") else f".{extension}"
+        key = f"output/{workspace_id}/{job_id}{safe_extension}"
         self._upload(local_source_path, key)
         return self._to_ref(key)
 

@@ -11,7 +11,7 @@ from ..config import settings
 from ..models import Job, JobStatus, JobType
 from ..repository import AuditRepository, JobRepository, UserRepository
 from .mailer import JobStatusEmail, build_job_notification_mailer
-from .pdf_processor import PdfProcessingError, compress_pdf_file, fix_pdf_file, merge_pdf_files
+from .pdf_processor import PdfProcessingError, compress_pdf_file, fix_pdf_file, merge_pdf_files, split_pdf_file
 from .storage import StorageError, build_storage_backend
 
 
@@ -75,7 +75,15 @@ def _output_suffix_for_job_type(job_type: str) -> str:
         return "compressed"
     if job_type == JobType.MERGE.value:
         return "merged"
+    if job_type == JobType.SPLIT.value:
+        return "split"
     return "processed"
+
+
+def _output_extension_for_job_type(job_type: str) -> str:
+    if job_type == JobType.SPLIT.value:
+        return ".zip"
+    return ".pdf"
 
 
 def _job_options(job: Job) -> dict[str, object]:
@@ -118,6 +126,18 @@ def _process_pdf_job(job: Job, *, storage, input_path: Path | None, output_path:
                 materialized = stack.enter_context(storage.materialize_input(raw_ref))
                 input_paths.append(materialized)
             merge_pdf_files(input_paths, output_path)
+        return
+    if job.job_type == JobType.SPLIT.value:
+        if input_path is None:
+            raise PdfProcessingError("Missing source file for split job.")
+        ranges = options.get("ranges")
+        if not isinstance(ranges, str) or not ranges.strip():
+            raise PdfProcessingError("Split job is missing valid ranges.")
+        split_pdf_file(
+            input_path,
+            output_path,
+            ranges=ranges,
+        )
         return
     raise PdfProcessingError(f"Unsupported job type: {job.job_type}")
 
@@ -222,7 +242,8 @@ def process_job(job_id: str, session_factory: sessionmaker) -> None:
 
         output_stage_dir = settings.storage_root / "tmp" / "worker_outputs" / job.workspace_id
         output_stage_dir.mkdir(parents=True, exist_ok=True)
-        output_stage_path = output_stage_dir / f"{job.id}_{_output_suffix_for_job_type(job.job_type)}.pdf"
+        output_extension = _output_extension_for_job_type(job.job_type)
+        output_stage_path = output_stage_dir / f"{job.id}_{_output_suffix_for_job_type(job.job_type)}{output_extension}"
 
         try:
             if job.job_type == JobType.MERGE.value:
@@ -234,6 +255,7 @@ def process_job(job_id: str, session_factory: sessionmaker) -> None:
             output_reference = storage.stage_output_file(
                 workspace_id=job.workspace_id,
                 job_id=job.id,
+                extension=output_extension,
                 local_source_path=output_stage_path,
             )
             completed = repo.update_status(

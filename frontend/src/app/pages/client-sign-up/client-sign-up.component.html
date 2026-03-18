@@ -1,0 +1,37 @@
+<div class="ambient ambient-left"></div>
+<div class="ambient ambient-right"></div>
+
+<main class="layout auth-layout">
+  <section class="hero">
+    <p class="eyebrow">New Account</p>
+    <h1>Sign up for client access</h1>
+    <p>Use your work email. If your workspace has invited you, you'll receive setup instructions.</p>
+    <p class="top-links">
+      <a routerLink="/sign-in">Already have an account? Sign in</a>
+    </p>
+  </section>
+
+  <section class="panel auth-panel">
+    <h2>Create Account</h2>
+    <form class="upload-form" (ngSubmit)="submit()">
+      <label for="signup-email" class="input-label">Work Email</label>
+      <input
+        id="signup-email"
+        type="email"
+        placeholder="you@company.com"
+        [(ngModel)]="email"
+        name="email"
+        autocomplete="email"
+        required
+      />
+
+      <button type="submit" [disabled]="isSubmitting">
+        {{ isSubmitting ? 'Submitting...' : 'Request Setup Link' }}
+      </button>
+    </form>
+    <p class="status" [ngClass]="statusStyle">{{ statusMessage }}</p>
+    <p class="auth-links">
+      <a routerLink="/">Back to Home</a>
+    </p>
+  </section>
+</main>

@@ -17,7 +17,7 @@ export const clientAuthGuard: CanActivateFn = () => {
   return router.createUrlTree(['/sign-in']);
 };
 
-export const clientSignInRedirectGuard: CanActivateFn = () => {
+export const clientSignInRedirectGuard: CanActivateFn = (route) => {
   const session = inject(SessionService);
   const router = inject(Router);
 
@@ -26,7 +26,16 @@ export const clientSignInRedirectGuard: CanActivateFn = () => {
   }
 
   if (session.hasClientSession()) {
-    return router.createUrlTree(['/']);
+    const requestedOperation = route.queryParamMap.get('operation');
+    if (
+      requestedOperation === 'font_fix' ||
+      requestedOperation === 'compress' ||
+      requestedOperation === 'merge' ||
+      requestedOperation === 'split'
+    ) {
+      return router.createUrlTree(['/portal'], { queryParams: { operation: requestedOperation } });
+    }
+    return router.createUrlTree(['/portal']);
   }
 
   return true;

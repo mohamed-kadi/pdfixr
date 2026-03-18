@@ -2,7 +2,7 @@ export type BillingStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'i
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 export type BillingEventStatus = 'received' | 'processed' | 'ignored' | 'failed';
 export type UserRole = 'admin' | 'client';
-export type JobType = 'font_fix' | 'compress' | 'merge';
+export type JobType = 'font_fix' | 'compress' | 'merge' | 'split';
 
 export interface WorkspaceInfoResponse {
   id: string;
@@ -150,6 +150,11 @@ export interface JobResponse {
 
 export interface JobListResponse {
   items: JobResponse[];
+}
+
+export interface PdfInspectResponse {
+  file_name: string;
+  page_count: number;
 }
 
 export interface AuditLogResponse {

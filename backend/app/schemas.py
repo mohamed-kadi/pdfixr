@@ -41,6 +41,11 @@ class JobListResponse(BaseModel):
     items: list[JobResponse]
 
 
+class PdfInspectResponse(BaseModel):
+    file_name: str
+    page_count: int
+
+
 class WorkspaceCreateRequest(BaseModel):
     name: str = Field(min_length=2, max_length=160)
     plan_name: str = Field(default="starter", min_length=2, max_length=64)
